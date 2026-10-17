@@ -1,0 +1,7 @@
+dist/
+bin/
+build/
+*.o
+*.so
+*.clap
+.DS_Store
