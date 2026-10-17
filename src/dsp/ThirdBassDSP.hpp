@@ -5,6 +5,7 @@
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+#include <atomic>
 #include "Biquad.hpp"
 
 namespace ThirdBass {
@@ -376,6 +377,12 @@ public:
         }
     }
 
+    float getMeterInPeak() const { return meterInPeak.load(std::memory_order_relaxed); }
+    float getMeterOutPeakL() const { return meterOutPeakL.load(std::memory_order_relaxed); }
+    float getMeterOutPeakR() const { return meterOutPeakR.load(std::memory_order_relaxed); }
+    float getMeterCompGR() const { return meterCompGR.load(std::memory_order_relaxed); }
+    float getMeterGateGain() const { return meterGateGain.load(std::memory_order_relaxed); }
+
     void process(const float* const* inputs, float* const* outputs, int numFrames) {
         if (dirtyFilters) {
             updateFilterCoeffs();
@@ -431,9 +438,16 @@ public:
         int delayBufSize = delayBufferL.size();
         int chorusBufSize = chorusBufferL.size();
 
+        float blockPeakIn = 0.0f;
+        float blockPeakOutL = 0.0f;
+        float blockPeakOutR = 0.0f;
+        float minGateGain = 1.0f;
+        float maxCompGR = 0.0f;
+
         for (int i = 0; i < numFrames; ++i) {
             float rawL = inL[i];
             float rawR = inR[i];
+            blockPeakIn = std::max(blockPeakIn, std::max(std::abs(rawL), std::abs(rawR)));
 
             // 1. Input Gain
             float sL = rawL * inGainLin;
@@ -453,6 +467,7 @@ public:
                 float diff = (gateThreshLin - gateEnv) / std::max(1e-6f, gateThreshLin);
                 gateGain = std::max(0.0f, 1.0f - diff * diff);
             }
+            minGateGain = std::min(minGateGain, gateGain);
             sL *= gateGain;
             sR *= gateGain;
 
@@ -581,6 +596,7 @@ public:
                 float compGainLin = std::pow(10.0f, -compEnv / 20.0f) * compMakeupLin;
                 sL *= compGainLin;
                 sR *= compGainLin;
+                maxCompGR = std::max(maxCompGR, compEnv);
             }
 
             // 7. Bass Crossover Chorus
@@ -694,7 +710,23 @@ public:
             // 12. Global Dry / Wet Blend
             outL[i] = rawL * (1.0f - dryWet) + sL * dryWet;
             outR[i] = rawR * (1.0f - dryWet) + sR * dryWet;
+
+            blockPeakOutL = std::max(blockPeakOutL, std::abs(outL[i]));
+            blockPeakOutR = std::max(blockPeakOutR, std::abs(outR[i]));
         }
+
+        // Smooth decay for UI meters
+        float prevIn = meterInPeak.load(std::memory_order_relaxed);
+        meterInPeak.store(std::max(blockPeakIn, prevIn * 0.90f), std::memory_order_relaxed);
+
+        float prevOutL = meterOutPeakL.load(std::memory_order_relaxed);
+        meterOutPeakL.store(std::max(blockPeakOutL, prevOutL * 0.90f), std::memory_order_relaxed);
+
+        float prevOutR = meterOutPeakR.load(std::memory_order_relaxed);
+        meterOutPeakR.store(std::max(blockPeakOutR, prevOutR * 0.90f), std::memory_order_relaxed);
+
+        meterCompGR.store(maxCompGR, std::memory_order_relaxed);
+        meterGateGain.store(minGateGain, std::memory_order_relaxed);
     }
 
 private:
@@ -824,6 +856,13 @@ private:
     std::vector<float> chorusBufferR;
     int chorusWritePos = 0;
     float chorusPhase = 0.0f;
+
+    // Real-time audio metering atomics
+    std::atomic<float> meterInPeak{0.0f};
+    std::atomic<float> meterOutPeakL{0.0f};
+    std::atomic<float> meterOutPeakR{0.0f};
+    std::atomic<float> meterCompGR{0.0f};
+    std::atomic<float> meterGateGain{1.0f};
 };
 
 } // namespace ThirdBass

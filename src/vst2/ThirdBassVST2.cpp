@@ -2,8 +2,17 @@
 #include <cstring>
 #include <cstdio>
 #include <memory>
+#include <X11/Xlib.h>
 #include "../../include/vst2/aeffect.h"
 #include "../dsp/ThirdBassDSP.hpp"
+#include "../gui/CairoUI.hpp"
+
+struct ERect {
+    int16_t top;
+    int16_t left;
+    int16_t bottom;
+    int16_t right;
+};
 
 class ThirdBassVST2Wrapper {
 public:
@@ -20,13 +29,22 @@ public:
         cEffect.numParams = ThirdBass::NUM_PARAMS;
         cEffect.numInputs = 2;
         cEffect.numOutputs = 2;
-        cEffect.flags = effFlagsCanReplacing | effFlagsCanDoubleReplacing;
+        cEffect.flags = effFlagsHasEditor | effFlagsCanReplacing | effFlagsCanDoubleReplacing;
         cEffect.uniqueID = 0x33424153; // '3BAS'
         cEffect.version = 1000;
         cEffect.object = this;
 
+        editorRect.top = 0;
+        editorRect.left = 0;
+        editorRect.bottom = ThirdBass::PluginUI::UI_HEIGHT;
+        editorRect.right = ThirdBass::PluginUI::UI_WIDTH;
+
         currentProgram = 0;
         engine.setSampleRate(44100.0f);
+    }
+
+    ~ThirdBassVST2Wrapper() {
+        closeEditor();
     }
 
     AEffect* getAEffect() { return &cEffect; }
@@ -47,7 +65,6 @@ public:
         if (!effect || !effect->object) return;
         auto* self = static_cast<ThirdBassVST2Wrapper*>(effect->object);
         
-        // Convert double to float for DSP engine
         thread_local std::vector<float> inBufL, inBufR, outBufL, outBufR;
         if ((int)inBufL.size() < sampleFrames) {
             inBufL.resize(sampleFrames);
@@ -80,6 +97,10 @@ public:
         const auto* defs = ThirdBass::getParameterDefs();
         float denorm = defs[index].minVal + parameter * (defs[index].maxVal - defs[index].minVal);
         self->engine.setParameter(index, denorm);
+
+        if (self->ui) {
+            self->ui->redraw();
+        }
     }
 
     static float getParameterCallback(AEffect* effect, int32_t index) {
@@ -105,10 +126,41 @@ public:
                 delete this;
                 return 0;
 
+            case effEditGetRect:
+                if (ptr) {
+                    *reinterpret_cast<ERect**>(ptr) = &editorRect;
+                    return 1;
+                }
+                return 0;
+
+            case effEditOpen:
+                if (ptr) {
+                    Window parentWin = (Window)(uintptr_t)ptr;
+                    openEditor(parentWin);
+                    return 1;
+                }
+                return 0;
+
+            case effEditClose:
+                closeEditor();
+                return 1;
+
+            case 19: // effEditIdle
+                if (ui && xDisplay) {
+                    while (XPending(xDisplay) > 0) {
+                        XEvent ev;
+                        XNextEvent(xDisplay, &ev);
+                        ui->handleEvent(&ev);
+                    }
+                    ui->idle();
+                }
+                return 1;
+
             case effSetProgram:
                 if (value >= 0 && value < (intptr_t)presets.size()) {
                     currentProgram = static_cast<int32_t>(value);
                     engine.loadPreset(currentProgram);
+                    if (ui) ui->redraw();
                 }
                 return 0;
 
@@ -116,7 +168,6 @@ public:
                 return currentProgram;
 
             case effSetProgramName:
-                // Not modifying preset names in runtime
                 return 0;
 
             case effGetProgramName:
@@ -210,6 +261,7 @@ public:
                     if (strcmp((char*)ptr, "sendVstEvents") == 0) return -1;
                     if (strcmp((char*)ptr, "1in1out") == 0) return 1;
                     if (strcmp((char*)ptr, "2in2out") == 0) return 1;
+                    if (strcmp((char*)ptr, "hasCockosViewAsConfig") == 0) return -1;
                 }
                 return 0;
 
@@ -221,14 +273,37 @@ public:
         }
     }
 
+    void openEditor(Window parentWin) {
+        closeEditor();
+        xDisplay = XOpenDisplay(nullptr);
+        if (xDisplay) {
+            ui = std::make_unique<ThirdBass::PluginUI>(&engine);
+            ui->openWindow(xDisplay, parentWin);
+        }
+    }
+
+    void closeEditor() {
+        if (ui) {
+            ui->closeWindow();
+            ui.reset();
+        }
+        if (xDisplay) {
+            XCloseDisplay(xDisplay);
+            xDisplay = nullptr;
+        }
+    }
+
 private:
     AEffect cEffect;
     audioMasterCallback audioMaster;
     ThirdBass::ThirdBassEngine engine;
     int32_t currentProgram;
+    ERect editorRect;
+
+    Display* xDisplay = nullptr;
+    std::unique_ptr<ThirdBass::PluginUI> ui;
 };
 
-// Export VSTPluginMain and main for 64-bit Linux VST hosts
 extern "C" {
 
 #if defined(__GNUC__)

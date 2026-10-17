@@ -4,8 +4,11 @@
 #include <memory>
 #include <vector>
 #include <cmath>
+#include <X11/Xlib.h>
 #include "../../include/clap/clap.h"
+#include "../../include/clap/ext/gui.h"
 #include "../dsp/ThirdBassDSP.hpp"
+#include "../gui/CairoUI.hpp"
 
 namespace {
 
@@ -45,6 +48,10 @@ public:
         plugin.on_main_thread = onMainThreadCallback;
 
         engine.setSampleRate(44100.0f);
+    }
+
+    ~ThirdBassCLAPInstance() {
+        closeUI();
     }
 
     clap_plugin_t* getPlugin() { return &plugin; }
@@ -103,12 +110,24 @@ public:
         return CLAP_PROCESS_CONTINUE;
     }
 
-    static void CLAP_ABI onMainThreadCallback(const clap_plugin_t* plugin) {}
+    static void CLAP_ABI onMainThreadCallback(const clap_plugin_t* plugin) {
+        if (!plugin || !plugin->plugin_data) return;
+        auto* self = static_cast<ThirdBassCLAPInstance*>(plugin->plugin_data);
+        if (self->ui && self->xDisplay) {
+            while (XPending(self->xDisplay) > 0) {
+                XEvent ev;
+                XNextEvent(self->xDisplay, &ev);
+                self->ui->handleEvent(&ev);
+            }
+            self->ui->idle();
+        }
+    }
 
     static const void* CLAP_ABI getExtensionCallback(const clap_plugin_t* plugin, const char* id) {
         if (strcmp(id, CLAP_EXT_AUDIO_PORTS) == 0) return &s_audioPorts;
         if (strcmp(id, CLAP_EXT_PARAMS) == 0) return &s_params;
         if (strcmp(id, CLAP_EXT_STATE) == 0) return &s_state;
+        if (strcmp(id, CLAP_EXT_GUI) == 0) return &s_gui;
         return nullptr;
     }
 
@@ -220,9 +239,110 @@ public:
             for (int i = 0; i < ThirdBass::NUM_PARAMS; ++i) {
                 self->engine.setParameter(i, values[i]);
             }
+            if (self->ui) self->ui->redraw();
             return true;
         }
         return false;
+    }
+
+    // GUI Extension
+    static bool CLAP_ABI guiIsApiSupported(const clap_plugin_t* plugin, const char* api, bool is_floating) {
+        if (is_floating) return false;
+        return (strcmp(api, CLAP_WINDOW_API_X11) == 0);
+    }
+
+    static bool CLAP_ABI guiGetPreferredApi(const clap_plugin_t* plugin, const char** api, bool* is_floating) {
+        *api = CLAP_WINDOW_API_X11;
+        *is_floating = false;
+        return true;
+    }
+
+    static bool CLAP_ABI guiCreate(const clap_plugin_t* plugin, const char* api, bool is_floating) {
+        return (strcmp(api, CLAP_WINDOW_API_X11) == 0 && !is_floating);
+    }
+
+    static void CLAP_ABI guiDestroy(const clap_plugin_t* plugin) {
+        if (!plugin || !plugin->plugin_data) return;
+        auto* self = static_cast<ThirdBassCLAPInstance*>(plugin->plugin_data);
+        self->closeUI();
+    }
+
+    static bool CLAP_ABI guiSetScale(const clap_plugin_t* plugin, double scale) {
+        return false;
+    }
+
+    static bool CLAP_ABI guiGetSize(const clap_plugin_t* plugin, uint32_t* width, uint32_t* height) {
+        *width = ThirdBass::PluginUI::UI_WIDTH;
+        *height = ThirdBass::PluginUI::UI_HEIGHT;
+        return true;
+    }
+
+    static bool CLAP_ABI guiCanResize(const clap_plugin_t* plugin) {
+        return false;
+    }
+
+    static bool CLAP_ABI guiGetResizeHints(const clap_plugin_t* plugin, clap_gui_resize_hints_t* hints) {
+        hints->can_resize_horizontally = false;
+        hints->can_resize_vertically = false;
+        return true;
+    }
+
+    static bool CLAP_ABI guiAdjustSize(const clap_plugin_t* plugin, uint32_t* width, uint32_t* height) {
+        *width = ThirdBass::PluginUI::UI_WIDTH;
+        *height = ThirdBass::PluginUI::UI_HEIGHT;
+        return true;
+    }
+
+    static bool CLAP_ABI guiSetSize(const clap_plugin_t* plugin, uint32_t width, uint32_t height) {
+        return (width == ThirdBass::PluginUI::UI_WIDTH && height == ThirdBass::PluginUI::UI_HEIGHT);
+    }
+
+    static bool CLAP_ABI guiSetParent(const clap_plugin_t* plugin, const clap_window_t* window) {
+        if (!plugin || !plugin->plugin_data || !window) return false;
+        if (strcmp(window->api, CLAP_WINDOW_API_X11) != 0) return false;
+        auto* self = static_cast<ThirdBassCLAPInstance*>(plugin->plugin_data);
+        return self->openUI(window->x11);
+    }
+
+    static bool CLAP_ABI guiSetTransient(const clap_plugin_t* plugin, const clap_window_t* window) {
+        return false;
+    }
+
+    static void CLAP_ABI guiSuggestTitle(const clap_plugin_t* plugin, const char* title) {}
+
+    static bool CLAP_ABI guiShow(const clap_plugin_t* plugin) {
+        if (!plugin || !plugin->plugin_data) return false;
+        auto* self = static_cast<ThirdBassCLAPInstance*>(plugin->plugin_data);
+        if (self->ui) {
+            self->ui->redraw();
+            return true;
+        }
+        return false;
+    }
+
+    static bool CLAP_ABI guiHide(const clap_plugin_t* plugin) {
+        return true;
+    }
+
+    bool openUI(Window parentWin) {
+        closeUI();
+        xDisplay = XOpenDisplay(nullptr);
+        if (xDisplay) {
+            ui = std::make_unique<ThirdBass::PluginUI>(&engine);
+            return ui->openWindow(xDisplay, parentWin);
+        }
+        return false;
+    }
+
+    void closeUI() {
+        if (ui) {
+            ui->closeWindow();
+            ui.reset();
+        }
+        if (xDisplay) {
+            XCloseDisplay(xDisplay);
+            xDisplay = nullptr;
+        }
     }
 
 private:
@@ -230,9 +350,13 @@ private:
     const clap_host_t* host;
     ThirdBass::ThirdBassEngine engine;
 
+    Display* xDisplay = nullptr;
+    std::unique_ptr<ThirdBass::PluginUI> ui;
+
     static const clap_plugin_audio_ports_t s_audioPorts;
     static const clap_plugin_params_t s_params;
     static const clap_plugin_state_t s_state;
+    static const clap_plugin_gui_t s_gui;
 };
 
 const clap_plugin_audio_ports_t ThirdBassCLAPInstance::s_audioPorts = {
@@ -252,6 +376,24 @@ const clap_plugin_params_t ThirdBassCLAPInstance::s_params = {
 const clap_plugin_state_t ThirdBassCLAPInstance::s_state = {
     stateSave,
     stateLoad
+};
+
+const clap_plugin_gui_t ThirdBassCLAPInstance::s_gui = {
+    guiIsApiSupported,
+    guiGetPreferredApi,
+    guiCreate,
+    guiDestroy,
+    guiSetScale,
+    guiGetSize,
+    guiCanResize,
+    guiGetResizeHints,
+    guiAdjustSize,
+    guiSetSize,
+    guiSetParent,
+    guiSetTransient,
+    guiSuggestTitle,
+    guiShow,
+    guiHide
 };
 
 // Factory

@@ -4,6 +4,25 @@ A high-performance, native 64-bit Linux bass amplifier simulator and multi-effec
 
 Built specifically for **REAPER** and **LMMS** on Linux without requiring Wine, bridges, or external dependencies.
 
+## Graphical User Interface (GUI)
+
+Third Bass features a custom, high-definition double-buffered hardware rack interface (980x560) rendered natively via Cairo / X11:
+
+- **Contextual Signal-Flow Grouping**: Modules are grouped strictly by studio audio signal chain (Input/Gate -> Preamp & Drive -> 4-Band EQ on top row; Sub Resurrection -> Opto Compressor -> Crossover Chorus -> Stereo Delay -> Cabinet & Master on bottom row).
+- **Dynamic 4-Band EQ Visualizer**: Recessed graphical spectrum analyzer showing real-time composite frequency curves across 20 Hz – 20 kHz with draggable frequency node markers.
+- **Tube Filament Glow & Visualizers**: 12AX7 vacuum tube visualizer glows dynamically with Drive level; Crossover Chorus wave and Stereo Delay decay representations.
+- **Real-Time LED Metering**:
+  - Live Noise Gate status LED (`OPEN` vs `GATE`).
+  - Opto Compressor Gain Reduction LED meter (`GR dB` ladder from 0 to -18 dB).
+  - Stereo Master Output Peak VU meter with clip indication.
+- **Studio Hardware Controls**:
+  - **Vertical Drag**: Smooth adjustment across parameter ranges.
+  - **Shift + Drag**: 10x fine-tuning precision.
+  - **Mouse Wheel Scroll**: Turn any knob by scrolling up or down.
+  - **Double-Click**: Instantly reset any knob to its factory default value.
+  - **Preset Browser**: `<` and `>` quick navigation through all 12 factory presets.
+  - **Bypass / Toggle Buttons**: Instant ON/OFF toggle per module with glowing illuminated states.
+
 ---
 
 ## Features & Signal Chain

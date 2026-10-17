@@ -1,5 +1,7 @@
 CXX ?= g++
 CXXFLAGS ?= -O3 -fPIC -std=c++17 -Wall -Wextra -Iinclude -fvisibility=hidden
+CAIRO_LIB = /usr/lib/x86_64-linux-gnu/libcairo.so.2
+UI_LIBS = $(CAIRO_LIB) -lX11
 
 DIST_DIR = dist
 BUILD_DIR = build
@@ -17,11 +19,11 @@ $(BIN_DIR)/thirdbass_test: src/standalone/main.cpp src/dsp/ThirdBassDSP.hpp src/
 
 vst2: $(DIST_DIR)/ThirdBass.so
 
-$(DIST_DIR)/ThirdBass.so: src/vst2/ThirdBassVST2.cpp src/dsp/ThirdBassDSP.hpp src/dsp/Biquad.hpp
+$(DIST_DIR)/ThirdBass.so: src/vst2/ThirdBassVST2.cpp src/dsp/ThirdBassDSP.hpp src/dsp/Biquad.hpp src/gui/CairoUI.hpp
 	@mkdir -p $(DIST_DIR)
-	$(CXX) $(CXXFLAGS) -shared -Wl,-soname,ThirdBass.so src/vst2/ThirdBassVST2.cpp -o $(DIST_DIR)/ThirdBass.so
+	$(CXX) $(CXXFLAGS) -shared -Wl,-soname,ThirdBass.so src/vst2/ThirdBassVST2.cpp $(UI_LIBS) -o $(DIST_DIR)/ThirdBass.so
 
-lv2: $(DIST_DIR)/ThirdBass.lv2/ThirdBass.so
+lv2: $(DIST_DIR)/ThirdBass.lv2/ThirdBass.so $(DIST_DIR)/ThirdBass.lv2/ThirdBass_ui.so
 
 $(DIST_DIR)/ThirdBass.lv2/ThirdBass.so: src/lv2/ThirdBassLV2.cpp src/dsp/ThirdBassDSP.hpp src/dsp/Biquad.hpp src/lv2/manifest.ttl src/lv2/ThirdBass.ttl
 	@mkdir -p $(DIST_DIR)/ThirdBass.lv2
@@ -29,11 +31,15 @@ $(DIST_DIR)/ThirdBass.lv2/ThirdBass.so: src/lv2/ThirdBassLV2.cpp src/dsp/ThirdBa
 	cp src/lv2/manifest.ttl $(DIST_DIR)/ThirdBass.lv2/
 	cp src/lv2/ThirdBass.ttl $(DIST_DIR)/ThirdBass.lv2/
 
+$(DIST_DIR)/ThirdBass.lv2/ThirdBass_ui.so: src/lv2/ThirdBassUI_LV2.cpp src/dsp/ThirdBassDSP.hpp src/dsp/Biquad.hpp src/gui/CairoUI.hpp
+	@mkdir -p $(DIST_DIR)/ThirdBass.lv2
+	$(CXX) $(CXXFLAGS) -shared -Wl,-soname,ThirdBass_ui.so src/lv2/ThirdBassUI_LV2.cpp $(UI_LIBS) -o $(DIST_DIR)/ThirdBass.lv2/ThirdBass_ui.so
+
 clap: $(DIST_DIR)/ThirdBass.clap
 
-$(DIST_DIR)/ThirdBass.clap: src/clap/ThirdBassCLAP.cpp src/dsp/ThirdBassDSP.hpp src/dsp/Biquad.hpp
+$(DIST_DIR)/ThirdBass.clap: src/clap/ThirdBassCLAP.cpp src/dsp/ThirdBassDSP.hpp src/dsp/Biquad.hpp src/gui/CairoUI.hpp
 	@mkdir -p $(DIST_DIR)
-	$(CXX) $(CXXFLAGS) -shared -Wl,-soname,ThirdBass.clap src/clap/ThirdBassCLAP.cpp -o $(DIST_DIR)/ThirdBass.clap
+	$(CXX) $(CXXFLAGS) -shared -Wl,-soname,ThirdBass.clap src/clap/ThirdBassCLAP.cpp $(UI_LIBS) -o $(DIST_DIR)/ThirdBass.clap
 
 install: all
 	@echo "Installing Third Bass plugins for REAPER and LMMS..."
@@ -46,7 +52,7 @@ install: all
 	@echo "Installation complete!"
 	@echo "  -> VST2: ~/.vst/ThirdBass.so"
 	@echo "  -> LMMS VST: /home/yavuz/Documents/lmms/plugins/vst/ThirdBass.so"
-	@echo "  -> LV2:  ~/.lv2/ThirdBass.lv2/"
+	@echo "  -> LV2:  ~/.lv2/ThirdBass.lv2/ (DSP & UI)"
 	@echo "  -> CLAP: ~/.clap/ThirdBass.clap"
 
 clean:

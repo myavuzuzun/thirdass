@@ -140,10 +140,12 @@ const LV2_Descriptor descriptor = {
 
 extern "C" {
 
+#ifndef LV2_SYMBOL_EXPORT
 #if defined(__GNUC__)
 #define LV2_SYMBOL_EXPORT __attribute__((visibility("default")))
 #else
 #define LV2_SYMBOL_EXPORT
+#endif
 #endif
 
 LV2_SYMBOL_EXPORT const LV2_Descriptor* lv2_descriptor(uint32_t index) {
