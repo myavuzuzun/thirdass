@@ -2,6 +2,8 @@
 
 A high-performance, native 64-bit bass amplifier simulator and multi-effects processor for electric bass guitars, synth basses, and low-end sound design.
 
+![Third Ass UI Preview](thirdass_preview.png)
+
 Built on open-source clean-room architectures providing dual output formats:
 - **VeSTige**: Native 64-bit DLL for LMMS (VeSTige) and Windows DAWs.
 - **VST3**: Modern VST3 format (`.vst3` bundle) for modern DAWs (Cubase, REAPER, Ableton Live, Studio One, FL Studio, Bitwig) without requiring bridges, wrappers, or proprietary SDK dependencies.
