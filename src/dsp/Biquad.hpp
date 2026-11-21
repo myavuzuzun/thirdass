@@ -2,7 +2,7 @@
 #include <cmath>
 #include <algorithm>
 
-namespace ThirdBass {
+namespace ThirdAss {
 
 inline float flushDenormal(float val) {
 #if defined(__SSE__) || defined(_M_X64) || defined(__x86_64__)
@@ -149,4 +149,4 @@ private:
 };
 
 
-} // namespace ThirdBass
+} // namespace ThirdAss

@@ -25,15 +25,15 @@ $dllSize = (Get-Item "dist\ThirdAss.dll").Length
 Write-Host "      -> dist/ThirdAss.dll built successfully! ($([math]::Round($dllSize/1KB, 1)) KB)" -ForegroundColor Green
 
 # 2. Compile Standalone GUI Preview Executable
-Write-Host "[2/3] Compiling bin/thirdbass_gui.exe (Standalone Direct2D preview)..." -ForegroundColor Yellow
-g++ -O3 -std=c++17 -Wall -Wextra -Iinclude -fno-math-errno -fno-trapping-math -static -fno-rtti -fno-exceptions -ffunction-sections -fdata-sections -flto "-Wl,--gc-sections" -s src/standalone/gui_main.cpp -ld2d1 -ldwrite -lole32 -lgdi32 -luser32 -o bin/thirdbass_gui.exe
+Write-Host "[2/3] Compiling bin/thirdass_gui.exe (Standalone Direct2D preview)..." -ForegroundColor Yellow
+g++ -O3 -std=c++17 -Wall -Wextra -Iinclude -fno-math-errno -fno-trapping-math -static -fno-rtti -fno-exceptions -ffunction-sections -fdata-sections -flto "-Wl,--gc-sections" -s src/standalone/gui_main.cpp -ld2d1 -ldwrite -lole32 -lgdi32 -luser32 -o bin/thirdass_gui.exe
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to compile bin/thirdbass_gui.exe"
+    Write-Error "Failed to compile bin/thirdass_gui.exe"
     exit 1
 }
-$exeSize = (Get-Item "bin\thirdbass_gui.exe").Length
-Write-Host "      -> bin/thirdbass_gui.exe built successfully! ($([math]::Round($exeSize/1KB, 1)) KB)" -ForegroundColor Green
+$exeSize = (Get-Item "bin\thirdass_gui.exe").Length
+Write-Host "      -> bin/thirdass_gui.exe built successfully! ($([math]::Round($exeSize/1KB, 1)) KB)" -ForegroundColor Green
 
 # 3. Run Verification Test Suite
 Write-Host "[3/3] Running plugin verification test suite..." -ForegroundColor Yellow

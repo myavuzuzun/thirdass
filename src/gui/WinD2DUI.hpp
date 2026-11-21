@@ -18,7 +18,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
-#include "../dsp/ThirdBassDSP.hpp"
+#include "../dsp/ThirdAssDSP.hpp"
 
 #if defined(_MSC_VER)
 #pragma comment(lib, "d2d1.lib")
@@ -26,7 +26,7 @@
 #pragma comment(lib, "ole32.lib")
 #endif
 
-namespace ThirdBass {
+namespace ThirdAss {
 
 struct D2DColor {
     float r, g, b, a;
@@ -58,7 +58,7 @@ public:
     static constexpr int UI_WIDTH = 980;
     static constexpr int UI_HEIGHT = 560;
 
-    PluginUI(ThirdBassEngine* eng) : engine(eng) {
+    PluginUI(ThirdAssEngine* eng) : engine(eng) {
         initLayout();
         initDirect2D();
     }
@@ -149,7 +149,7 @@ public:
 private:
     static constexpr UINT_PTR TIMER_ID = 1001;
 
-    ThirdBassEngine* engine = nullptr;
+    ThirdAssEngine* engine = nullptr;
     HWND parentHWnd = nullptr;
     HWND hWnd = nullptr;
     bool windowMapped = false;
@@ -1158,6 +1158,6 @@ private:
     }
 };
 
-} // namespace ThirdBass
+} // namespace ThirdAss
 
 #endif // _WIN32

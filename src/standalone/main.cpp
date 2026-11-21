@@ -3,7 +3,7 @@
 #include <cmath>
 #include <cassert>
 #include <iomanip>
-#include "../dsp/ThirdBassDSP.hpp"
+#include "../dsp/ThirdAssDSP.hpp"
 
 int main(int argc, char** argv) {
     std::cout << "===================================================\n";
@@ -11,7 +11,7 @@ int main(int argc, char** argv) {
     std::cout << " DSP Verification & Benchmarking Test Suite         \n";
     std::cout << "===================================================\n\n";
 
-    ThirdBass::ThirdBassEngine engine;
+    ThirdAss::ThirdAssEngine engine;
     const float sampleRate = 44100.0f;
     engine.setSampleRate(sampleRate);
 
@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
         inputR[i] = inputL[i];
     }
 
-    const auto& presets = ThirdBass::getPresets();
+    const auto& presets = ThirdAss::getPresets();
     std::cout << "Testing all " << presets.size() << " Factory Presets:\n";
     std::cout << "---------------------------------------------------\n";
 

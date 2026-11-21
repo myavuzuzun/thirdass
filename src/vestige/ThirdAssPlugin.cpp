@@ -10,7 +10,7 @@
 #include <windows.h>
 
 #include "vestige/vestige.h"
-#include "../dsp/ThirdBassDSP.hpp"
+#include "../dsp/ThirdAssDSP.hpp"
 #include "../gui/WinD2DUI.hpp"
 
 class ThirdAssPluginWrapper {
@@ -24,8 +24,8 @@ public:
         cEffect.processDoubleReplacing = processDoubleReplacingCallback;
         cEffect.setParameter = setParameterCallback;
         cEffect.getParameter = getParameterCallback;
-        cEffect.numPrograms = static_cast<int32_t>(ThirdBass::getPresets().size());
-        cEffect.numParams = ThirdBass::NUM_PARAMS;
+        cEffect.numPrograms = static_cast<int32_t>(ThirdAss::getPresets().size());
+        cEffect.numParams = ThirdAss::NUM_PARAMS;
         cEffect.numInputs = 2;
         cEffect.numOutputs = 2;
         cEffect.flags = effFlagsHasEditor | effFlagsCanReplacing | effFlagsCanDoubleReplacing | effFlagsIsSynth;
@@ -35,8 +35,8 @@ public:
 
         editorRect.top = 0;
         editorRect.left = 0;
-        editorRect.bottom = ThirdBass::PluginUI::UI_HEIGHT;
-        editorRect.right = ThirdBass::PluginUI::UI_WIDTH;
+        editorRect.bottom = ThirdAss::PluginUI::UI_HEIGHT;
+        editorRect.right = ThirdAss::PluginUI::UI_WIDTH;
 
         currentProgram = 0;
         engine.setSampleRate(44100.0f);
@@ -91,9 +91,9 @@ public:
     static void setParameterCallback(AEffect* effect, int32_t index, float parameter) {
         if (!effect || !effect->object) return;
         auto* self = static_cast<ThirdAssPluginWrapper*>(effect->object);
-        if (index < 0 || index >= ThirdBass::NUM_PARAMS) return;
+        if (index < 0 || index >= ThirdAss::NUM_PARAMS) return;
 
-        const auto* defs = ThirdBass::getParameterDefs();
+        const auto* defs = ThirdAss::getParameterDefs();
         float denorm = defs[index].minVal + parameter * (defs[index].maxVal - defs[index].minVal);
         self->engine.setParameter(index, denorm);
 
@@ -105,17 +105,17 @@ public:
     static float getParameterCallback(AEffect* effect, int32_t index) {
         if (!effect || !effect->object) return 0.0f;
         auto* self = static_cast<ThirdAssPluginWrapper*>(effect->object);
-        if (index < 0 || index >= ThirdBass::NUM_PARAMS) return 0.0f;
+        if (index < 0 || index >= ThirdAss::NUM_PARAMS) return 0.0f;
 
-        const auto* defs = ThirdBass::getParameterDefs();
+        const auto* defs = ThirdAss::getParameterDefs();
         float val = self->engine.getParameter(index);
         float range = defs[index].maxVal - defs[index].minVal;
         return (range > 0.0f) ? ((val - defs[index].minVal) / range) : 0.0f;
     }
 
     intptr_t dispatcher(int32_t opcode, int32_t index, intptr_t value, void* ptr, float opt) {
-        const auto* defs = ThirdBass::getParameterDefs();
-        const auto& presets = ThirdBass::getPresets();
+        const auto* defs = ThirdAss::getParameterDefs();
+        const auto& presets = ThirdAss::getPresets();
 
         switch (opcode) {
             case effOpen:
@@ -179,7 +179,7 @@ public:
                 return 0;
 
             case effGetParamName:
-                if (ptr && index >= 0 && index < ThirdBass::NUM_PARAMS) {
+                if (ptr && index >= 0 && index < ThirdAss::NUM_PARAMS) {
                     strncpy((char*)ptr, defs[index].name, 24);
                     ((char*)ptr)[24] = '\0';
                     return 1;
@@ -187,7 +187,7 @@ public:
                 return 0;
 
             case effGetParamLabel:
-                if (ptr && index >= 0 && index < ThirdBass::NUM_PARAMS) {
+                if (ptr && index >= 0 && index < ThirdAss::NUM_PARAMS) {
                     strncpy((char*)ptr, defs[index].label, 8);
                     ((char*)ptr)[8] = '\0';
                     return 1;
@@ -195,13 +195,13 @@ public:
                 return 0;
 
             case effGetParamDisplay:
-                if (ptr && index >= 0 && index < ThirdBass::NUM_PARAMS) {
+                if (ptr && index >= 0 && index < ThirdAss::NUM_PARAMS) {
                     float val = engine.getParameter(index);
-                    if (index == ThirdBass::PARAM_CAB_MODE) {
+                    if (index == ThirdAss::PARAM_CAB_MODE) {
                         const char* cabs[] = { "Direct", "8x10 SVT", "1x15 Port", "4x10 Punch", "2x12 Rock" };
                         int c = std::clamp(static_cast<int>(val), 0, 4);
                         snprintf((char*)ptr, 24, "%s", cabs[c]);
-                    } else if (index == ThirdBass::PARAM_DRIVE_MODE) {
+                    } else if (index == ThirdAss::PARAM_DRIVE_MODE) {
                         const char* drives[] = { "Warm Tube", "Overdrive", "Fuzz Grit" };
                         int d = std::clamp(static_cast<int>(val), 0, 2);
                         snprintf((char*)ptr, 24, "%s", drives[d]);
@@ -271,7 +271,7 @@ public:
 
     void openEditor(void* parentWin) {
         closeEditor();
-        ui = std::make_unique<ThirdBass::PluginUI>(&engine);
+        ui = std::make_unique<ThirdAss::PluginUI>(&engine);
         ui->openWindow(parentWin);
     }
 
@@ -285,10 +285,10 @@ public:
 private:
     AEffect cEffect;
     [[maybe_unused]] audioMasterCallback audioMaster;
-    ThirdBass::ThirdBassEngine engine;
+    ThirdAss::ThirdAssEngine engine;
     int32_t currentProgram;
     ERect editorRect;
-    std::unique_ptr<ThirdBass::PluginUI> ui;
+    std::unique_ptr<ThirdAss::PluginUI> ui;
 };
 
 extern "C" {

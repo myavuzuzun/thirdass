@@ -1,6 +1,6 @@
 # Third Ass (Windows x64 Native Audio Plugin)
 
-A high-performance, native 64-bit bass amplifier simulator and multi-effects processor designed as a modern replacement for the legacy Windows freeware plugin **3rd Bass** (by Fretted Synth Audio / Joseph DeHelian).
+A high-performance, native 64-bit bass amplifier simulator and multi-effects processor for electric bass guitars, synth basses, and low-end sound design.
 
 Built on the open-source **VeSTige** clean-room architecture specifically for **LMMS (VeSTige)**, **REAPER**, and modern 64-bit Windows host DAWs without requiring bridges, wrappers, or proprietary SDK dependencies.
 
@@ -103,7 +103,7 @@ make install
 * **Windows 64-bit Audio Plugin**: `dist\ThirdAss.dll`
 * **LMMS VeSTige Path**: `%USERPROFILE%\Documents\lmms\plugins\vst\ThirdAss.dll`
 * **Common VST Path**: `C:\Users\%USERNAME%\Documents\VstPlugins\ThirdAss.dll`
-* **Standalone GUI Preview**: `bin\thirdbass_gui.exe`
+* **Standalone GUI Preview**: `bin\thirdass_gui.exe`
 
 ### 3. Using in LMMS (VeSTige)
 1. In LMMS, open the **Song-Editor**.

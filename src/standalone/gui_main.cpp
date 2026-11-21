@@ -3,7 +3,7 @@
 #define NOMINMAX
 #include <windows.h>
 
-#include "../dsp/ThirdBassDSP.hpp"
+#include "../dsp/ThirdAssDSP.hpp"
 #include "../gui/WinD2DUI.hpp"
 
 static LRESULT CALLBACK StandaloneHostWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -16,8 +16,8 @@ static LRESULT CALLBACK StandaloneHostWndProc(HWND hwnd, UINT uMsg, WPARAM wPara
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     (void)nCmdShow;
-    ThirdBass::ThirdBassEngine engine;
-    ThirdBass::PluginUI ui(&engine);
+    ThirdAss::ThirdAssEngine engine;
+    ThirdAss::PluginUI ui(&engine);
 
     WNDCLASSEXA wc = {};
     wc.cbSize = sizeof(WNDCLASSEXA);
@@ -29,7 +29,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     wc.lpszClassName = "ThirdAssStandaloneHostClass";
     RegisterClassExA(&wc);
 
-    RECT rc = { 0, 0, ThirdBass::PluginUI::UI_WIDTH, ThirdBass::PluginUI::UI_HEIGHT };
+    RECT rc = { 0, 0, ThirdAss::PluginUI::UI_WIDTH, ThirdAss::PluginUI::UI_HEIGHT };
     AdjustWindowRect(&rc, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, FALSE);
 
     HWND hostHWnd = CreateWindowExA(

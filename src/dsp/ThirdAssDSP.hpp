@@ -14,7 +14,7 @@
 #include <atomic>
 #include "Biquad.hpp"
 
-namespace ThirdBass {
+namespace ThirdAss {
 
 enum ParameterID {
     PARAM_IN_GAIN = 0,
@@ -353,9 +353,9 @@ inline int nextPowerOfTwo(int x) {
     return p;
 }
 
-class ThirdBassEngine {
+class ThirdAssEngine {
 public:
-    ThirdBassEngine() {
+    ThirdAssEngine() {
         const ParameterDef* defs = getParameterDefs();
         for (int i = 0; i < NUM_PARAMS; ++i) {
             params[i] = defs[i].defaultVal;
@@ -916,4 +916,4 @@ private:
     std::atomic<float> meterGateGain{1.0f};
 };
 
-} // namespace ThirdBass
+} // namespace ThirdAss
