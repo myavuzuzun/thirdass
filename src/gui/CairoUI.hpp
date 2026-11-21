@@ -2,13 +2,47 @@
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/Xatom.h>
 #include <cmath>
 #include <string>
 #include <vector>
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <thread>
+#include <atomic>
+#include <chrono>
+#include <cstdarg>
+#include <mutex>
 #include "../dsp/ThirdBassDSP.hpp"
+
+static inline void thirdAssLog(const char* fmt, ...) {
+    static const char* enableDebug = getenv("THIRD_ASS_DEBUG");
+    if (!enableDebug) return;
+    FILE* f = fopen("/tmp/thirdass_debug.log", "a");
+    if (!f) return;
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(f, fmt, args);
+    va_end(args);
+    fclose(f);
+}
+
+static inline int s_xErrorHandler(Display* d, XErrorEvent* e) {
+    char buf[256];
+    XGetErrorText(d, e->error_code, buf, sizeof(buf));
+    thirdAssLog("[X11 Error] code=%d (%s), req=%d, minor=%d, resID=%lu\n",
+                e->error_code, buf, e->request_code, e->minor_code, (unsigned long)e->resourceid);
+    return 0;
+}
+
+struct XThreadsInitializer {
+    XThreadsInitializer() {
+        XInitThreads();
+        XSetErrorHandler(s_xErrorHandler);
+    }
+};
+static XThreadsInitializer s_xThreadsInitializer;
 
 // Self-contained Cairo C API declarations (links dynamically against libcairo.so.2)
 typedef struct _cairo cairo_t;
@@ -19,8 +53,19 @@ typedef struct {
     double x_bearing, y_bearing, width, height, x_advance, y_advance;
 } cairo_text_extents_t;
 
+typedef enum {
+    CAIRO_FORMAT_ARGB32 = 0,
+    CAIRO_FORMAT_RGB24 = 1,
+    CAIRO_FORMAT_A8 = 2,
+    CAIRO_FORMAT_A1 = 3
+} cairo_format_t;
+
 extern "C" {
     cairo_surface_t* cairo_xlib_surface_create(Display* dpy, Drawable drawable, Visual* visual, int width, int height);
+    cairo_surface_t* cairo_image_surface_create(cairo_format_t format, int width, int height);
+    unsigned char* cairo_image_surface_get_data(cairo_surface_t* surface);
+    int cairo_image_surface_get_stride(cairo_surface_t* surface);
+    void cairo_surface_flush(cairo_surface_t* surface);
     void cairo_surface_destroy(cairo_surface_t* surface);
     cairo_t* cairo_create(cairo_surface_t* target);
     void cairo_destroy(cairo_t* cr);
@@ -90,40 +135,117 @@ public:
         closeWindow();
     }
 
-    bool openWindow(Display* dpy, Window parentWin) {
-        display = dpy;
-        parentWindow = parentWin;
-        if (!display || !parentWindow) return false;
+    bool openWindow(Display* /*ignoredDpy*/, Window parentWin) {
+        thirdAssLog("[CairoUI] openWindow called: parentWin=0x%lx\n", (unsigned long)parentWin);
+        closeWindow();
 
+        display = XOpenDisplay(nullptr);
+        if (!display) {
+            thirdAssLog("[CairoUI] XOpenDisplay failed!\n");
+            return false;
+        }
+
+        parentWindow = parentWin;
         screen = DefaultScreen(display);
-        visual = DefaultVisual(display, screen);
-        depth = DefaultDepth(display, screen);
+
+        XWindowAttributes pAttrs;
+        memset(&pAttrs, 0, sizeof(pAttrs));
+        int pDepth = DefaultDepth(display, screen);
+        Visual* pVisual = DefaultVisual(display, screen);
+        Colormap pColormap = DefaultColormap(display, screen);
+
+        if (parentWindow != 0) {
+            if (XGetWindowAttributes(display, parentWindow, &pAttrs)) {
+                thirdAssLog("[CairoUI] Parent attrs: depth=%d, visual=%p, colormap=%lu, width=%d, height=%d\n",
+                            pAttrs.depth, pAttrs.visual, (unsigned long)pAttrs.colormap, pAttrs.width, pAttrs.height);
+                pDepth = pAttrs.depth;
+                pVisual = pAttrs.visual;
+                pColormap = pAttrs.colormap;
+            } else {
+                thirdAssLog("[CairoUI] XGetWindowAttributes on parentWin failed!\n");
+            }
+        }
 
         XSetWindowAttributes attr;
         attr.event_mask = ExposureMask | StructureNotifyMask | ButtonPressMask |
                           ButtonReleaseMask | PointerMotionMask | KeyPressMask;
         attr.background_pixel = BlackPixel(display, screen);
+        attr.colormap = pColormap;
+        attr.border_pixel = 0;
 
-        window = XCreateWindow(display, parentWindow, 0, 0, UI_WIDTH, UI_HEIGHT,
-                               0, depth, InputOutput, visual,
-                               CWEventMask | CWBackPixel, &attr);
-        if (!window) return false;
+        Window root = RootWindow(display, screen);
+        Window actualParent = (parentWindow != 0) ? parentWindow : root;
 
-        // Double buffer pixmap for flicker-free rendering
-        backBuffer = XCreatePixmap(display, window, UI_WIDTH, UI_HEIGHT, depth);
-        gc = XCreateGC(display, window, 0, nullptr);
+        unsigned long valmask = CWEventMask | CWBackPixel;
+        if (pColormap != 0) {
+            valmask |= CWColormap | CWBorderPixel;
+        }
 
-        cairoSurface = cairo_xlib_surface_create(display, backBuffer, visual, UI_WIDTH, UI_HEIGHT);
+        window = XCreateWindow(display, actualParent, 0, 0, UI_WIDTH, UI_HEIGHT,
+                               0, pDepth, InputOutput, pVisual,
+                               valmask, &attr);
+        if (!window) {
+            thirdAssLog("[CairoUI] XCreateWindow failed!\n");
+            XCloseDisplay(display);
+            display = nullptr;
+            return false;
+        }
+        thirdAssLog("[CairoUI] Window created: 0x%lx, actualParent=0x%lx\n", (unsigned long)window, (unsigned long)actualParent);
+
+        // Set XEmbed property if embedded into a host container
+        if (parentWindow != 0) {
+            Atom atom_xembed = XInternAtom(display, "_XEMBED_INFO", False);
+            unsigned long xembed_data[2] = { 0, 1 }; // Version 0, XEMBED_MAPPED (1)
+            XChangeProperty(display, window, atom_xembed, atom_xembed, 32, PropModeReplace,
+                            (unsigned char*)xembed_data, 2);
+        }
+
+        depth = pDepth;
+        visual = pVisual;
+
+        // Software-rendered ARGB32 image surface with subpixel antialiasing & zero XRender glyph issues
+        cairoSurface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, UI_WIDTH, UI_HEIGHT);
         cairoContext = cairo_create(cairoSurface);
+        gc = XCreateGC(display, window, 0, nullptr);
 
         XMapWindow(display, window);
         XFlush(display);
 
+        windowMapped = true;
         redraw();
+
+        // Start dedicated GUI event thread for host-independent responsive rendering
+        uiRunning = true;
+        eventThread = std::thread([this]() {
+            int idleCounter = 0;
+            while (uiRunning && display) {
+                while (display && XPending(display) > 0) {
+                    XEvent ev;
+                    XNextEvent(display, &ev);
+                    handleEvent(&ev);
+                }
+                if (windowMapped) {
+                    // 60 FPS during active knob drag/interaction, throttled 30 FPS when idle
+                    if (++idleCounter >= 2 || activeKnobId >= 0) {
+                        idleCounter = 0;
+                        idle();
+                    }
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(16));
+            }
+        });
+
+        thirdAssLog("[CairoUI] openWindow complete and event thread running\n");
         return true;
     }
 
     void closeWindow() {
+        uiRunning = false;
+        if (eventThread.joinable()) {
+            eventThread.join();
+        }
+
+        std::lock_guard<std::mutex> lock(renderMutex);
         if (cairoContext) {
             cairo_destroy(cairoContext);
             cairoContext = nullptr;
@@ -132,17 +254,37 @@ public:
             cairo_surface_destroy(cairoSurface);
             cairoSurface = nullptr;
         }
-        if (display && backBuffer) {
-            XFreePixmap(display, backBuffer);
-            backBuffer = 0;
-        }
         if (display && gc) {
             XFreeGC(display, gc);
             gc = nullptr;
         }
         if (display && window) {
+            XUnmapWindow(display, window);
             XDestroyWindow(display, window);
+            XFlush(display);
             window = 0;
+        }
+        if (display) {
+            XCloseDisplay(display);
+            display = nullptr;
+        }
+        windowMapped = false;
+    }
+
+    void show() {
+        windowMapped = true;
+        if (display && window) {
+            XMapWindow(display, window);
+            XFlush(display);
+            redraw();
+        }
+    }
+
+    void hide() {
+        windowMapped = false;
+        if (display && window) {
+            XUnmapWindow(display, window);
+            XFlush(display);
         }
     }
 
@@ -154,6 +296,19 @@ public:
                 if (ev->xexpose.count == 0) {
                     redraw();
                 }
+                break;
+
+            case MapNotify:
+                windowMapped = true;
+                redraw();
+                break;
+
+            case UnmapNotify:
+                windowMapped = false;
+                break;
+
+            case ConfigureNotify:
+                redraw();
                 break;
 
             case ButtonPress:
@@ -187,6 +342,7 @@ public:
     }
 
     void redraw() {
+        std::lock_guard<std::mutex> lock(renderMutex);
         if (!display || !window || !cairoContext) return;
         render();
         blitToWindow();
@@ -320,7 +476,7 @@ private:
         cairo_set_font_size(cr, 22.0);
         cairo_set_source_rgb(cr, 0.14, 0.88, 0.84); // Radiant Cyan
         cairo_move_to(cr, 22, 32);
-        cairo_show_text(cr, "THIRD BASS");
+        cairo_show_text(cr, "THIRD ASS");
 
         cairo_set_font_size(cr, 10.0);
         cairo_set_source_rgb(cr, 0.55, 0.59, 0.66);
@@ -1108,8 +1264,16 @@ private:
     }
 
     void blitToWindow() {
-        if (display && window && backBuffer && gc) {
-            XCopyArea(display, backBuffer, window, gc, 0, 0, UI_WIDTH, UI_HEIGHT, 0, 0);
+        if (!display || !window || !cairoSurface || !gc) return;
+        cairo_surface_flush(cairoSurface);
+        unsigned char* data = cairo_image_surface_get_data(cairoSurface);
+        int stride = cairo_image_surface_get_stride(cairoSurface);
+        XImage* img = XCreateImage(display, visual, depth, ZPixmap, 0,
+                                   (char*)data, UI_WIDTH, UI_HEIGHT, 32, stride);
+        if (img) {
+            XPutImage(display, window, gc, img, 0, 0, 0, 0, UI_WIDTH, UI_HEIGHT);
+            img->data = nullptr; // prevent XDestroyImage from freeing Cairo's pixel data
+            XDestroyImage(img);
             XFlush(display);
         }
     }
@@ -1127,7 +1291,6 @@ private:
     Display* display = nullptr;
     Window parentWindow = 0;
     Window window = 0;
-    Pixmap backBuffer = 0;
     GC gc = nullptr;
     int screen = 0;
     Visual* visual = nullptr;
@@ -1144,6 +1307,11 @@ private:
     float dragStartVal = 0.0f;
     int currentPresetIdx = 0;
     unsigned long lastClickTime = 0;
+
+    std::thread eventThread;
+    std::atomic<bool> uiRunning{false};
+    std::atomic<bool> windowMapped{false};
+    std::mutex renderMutex;
 };
 
 } // namespace ThirdBass

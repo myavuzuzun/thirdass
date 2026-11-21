@@ -1,0 +1,18 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Source files
+*.cpp text
+*.hpp text
+*.h text
+*.def text
+*.ps1 text
+*.md text
+
+# Makefile should use LF
+Makefile text eol=lf
+
+# Binary files
+*.png binary
+*.dll binary
+*.exe binary

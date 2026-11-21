@@ -2,10 +2,21 @@
 #include <cstring>
 #include <cstdio>
 #include <memory>
+#include <vector>
+#include <algorithm>
+
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include "../gui/WinD2DUI.hpp"
+#else
 #include <X11/Xlib.h>
+#include "../gui/CairoUI.hpp"
+#endif
+
 #include "../../include/vst2/aeffect.h"
 #include "../dsp/ThirdBassDSP.hpp"
-#include "../gui/CairoUI.hpp"
 
 struct ERect {
     int16_t top;
@@ -29,8 +40,8 @@ public:
         cEffect.numParams = ThirdBass::NUM_PARAMS;
         cEffect.numInputs = 2;
         cEffect.numOutputs = 2;
-        cEffect.flags = effFlagsHasEditor | effFlagsCanReplacing | effFlagsCanDoubleReplacing;
-        cEffect.uniqueID = 0x33424153; // '3BAS'
+        cEffect.flags = effFlagsHasEditor | effFlagsCanReplacing | effFlagsCanDoubleReplacing | effFlagsIsSynth;
+        cEffect.uniqueID = 0x33415353; // '3ASS'
         cEffect.version = 1000;
         cEffect.object = this;
 
@@ -135,8 +146,12 @@ public:
 
             case effEditOpen:
                 if (ptr) {
+#if defined(_WIN32)
+                    openEditor(ptr);
+#else
                     Window parentWin = (Window)(uintptr_t)ptr;
                     openEditor(parentWin);
+#endif
                     return 1;
                 }
                 return 0;
@@ -146,12 +161,7 @@ public:
                 return 1;
 
             case 19: // effEditIdle
-                if (ui && xDisplay) {
-                    while (XPending(xDisplay) > 0) {
-                        XEvent ev;
-                        XNextEvent(xDisplay, &ev);
-                        ui->handleEvent(&ev);
-                    }
+                if (ui) {
                     ui->idle();
                 }
                 return 1;
@@ -230,7 +240,7 @@ public:
 
             case effGetEffectName:
                 if (ptr) {
-                    strncpy((char*)ptr, "Third Bass", 32);
+                    strncpy((char*)ptr, "Third Ass", 32);
                     ((char*)ptr)[31] = '\0';
                     return 1;
                 }
@@ -238,7 +248,7 @@ public:
 
             case effGetVendorString:
                 if (ptr) {
-                    strncpy((char*)ptr, "Antigravity Audio", 32);
+                    strncpy((char*)ptr, "myavuzuzun", 32);
                     ((char*)ptr)[31] = '\0';
                     return 1;
                 }
@@ -246,7 +256,7 @@ public:
 
             case effGetProductString:
                 if (ptr) {
-                    strncpy((char*)ptr, "Third Bass VST", 32);
+                    strncpy((char*)ptr, "Third Ass", 32);
                     ((char*)ptr)[31] = '\0';
                     return 1;
                 }
@@ -255,13 +265,16 @@ public:
             case effGetVendorVersion:
                 return 1000;
 
+            case 25: // effProcessEvents
+                return 1;
+
             case effCanDo:
                 if (ptr) {
-                    if (strcmp((char*)ptr, "receiveVstEvents") == 0) return -1;
+                    if (strcmp((char*)ptr, "receiveVstEvents") == 0) return 1;
+                    if (strcmp((char*)ptr, "receiveVstMidiEvent") == 0) return 1;
                     if (strcmp((char*)ptr, "sendVstEvents") == 0) return -1;
                     if (strcmp((char*)ptr, "1in1out") == 0) return 1;
                     if (strcmp((char*)ptr, "2in2out") == 0) return 1;
-                    if (strcmp((char*)ptr, "hasCockosViewAsConfig") == 0) return -1;
                 }
                 return 0;
 
@@ -273,40 +286,48 @@ public:
         }
     }
 
+#if defined(_WIN32)
+    void openEditor(void* parentWin) {
+        closeEditor();
+        ui = std::make_unique<ThirdBass::PluginUI>(&engine);
+        ui->openWindow(parentWin);
+    }
+#else
     void openEditor(Window parentWin) {
         closeEditor();
-        xDisplay = XOpenDisplay(nullptr);
-        if (xDisplay) {
-            ui = std::make_unique<ThirdBass::PluginUI>(&engine);
-            ui->openWindow(xDisplay, parentWin);
-        }
+        ui = std::make_unique<ThirdBass::PluginUI>(&engine);
+        ui->openWindow(nullptr, parentWin);
     }
+#endif
 
     void closeEditor() {
         if (ui) {
             ui->closeWindow();
             ui.reset();
         }
-        if (xDisplay) {
-            XCloseDisplay(xDisplay);
-            xDisplay = nullptr;
-        }
+#if !defined(_WIN32)
+        xDisplay = nullptr;
+#endif
     }
 
 private:
     AEffect cEffect;
-    audioMasterCallback audioMaster;
+    [[maybe_unused]] audioMasterCallback audioMaster;
     ThirdBass::ThirdBassEngine engine;
     int32_t currentProgram;
     ERect editorRect;
 
+#if !defined(_WIN32)
     Display* xDisplay = nullptr;
+#endif
     std::unique_ptr<ThirdBass::PluginUI> ui;
 };
 
 extern "C" {
 
-#if defined(__GNUC__)
+#if defined(_WIN32)
+#define VST_EXPORT __declspec(dllexport)
+#elif defined(__GNUC__)
 #define VST_EXPORT __attribute__((visibility("default")))
 #else
 #define VST_EXPORT
@@ -318,9 +339,11 @@ VST_EXPORT AEffect* VSTPluginMain(audioMasterCallback audioMaster) {
     return wrapper->getAEffect();
 }
 
+#if !defined(_WIN32)
 VST_EXPORT AEffect* main_vst(audioMasterCallback audioMaster) asm("main");
 VST_EXPORT AEffect* main_vst(audioMasterCallback audioMaster) {
     return VSTPluginMain(audioMaster);
 }
+#endif
 
 }

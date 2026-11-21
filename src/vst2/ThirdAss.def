@@ -1,0 +1,4 @@
+EXPORTS
+    VSTPluginMain
+    VstPluginMain = VSTPluginMain
+    main = VSTPluginMain

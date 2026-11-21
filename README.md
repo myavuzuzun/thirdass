@@ -1,12 +1,12 @@
-# Third Bass (Linux Native VST / LV2 / CLAP)
+# Third Ass (Windows & Linux Native VST2)
 
-A high-performance, native 64-bit Linux bass amplifier simulator and multi-effects processor designed as a modern replacement for the legacy Windows freeware plugin **3rd Bass** (by Fretted Synth Audio / Joseph DeHelian).
+A high-performance, native 64-bit bass amplifier simulator and multi-effects processor designed as a modern replacement for the legacy Windows freeware plugin **3rd Bass** (by Fretted Synth Audio / Joseph DeHelian).
 
-Built specifically for **REAPER** and **LMMS** on Linux without requiring Wine, bridges, or external dependencies.
+Built specifically for **LMMS (VeSTige)**, **REAPER**, and all modern VST2 host DAWs on Windows and Linux without requiring bridges or external runtime dependencies.
 
 ## Graphical User Interface (GUI)
 
-Third Bass features a custom, high-definition double-buffered hardware rack interface (980x560) rendered natively via Cairo / X11:
+Third Ass features a custom, high-definition double-buffered hardware rack interface rendered on Windows via hardware-accelerated **Direct2D & DirectWrite** (and native Cairo / X11 on Linux):
 
 - **Contextual Signal-Flow Grouping**: Modules are grouped strictly by studio audio signal chain (Input/Gate -> Preamp & Drive -> 4-Band EQ on top row; Sub Resurrection -> Opto Compressor -> Crossover Chorus -> Stereo Delay -> Cabinet & Master on bottom row).
 - **Dynamic 4-Band EQ Visualizer**: Recessed graphical spectrum analyzer showing real-time composite frequency curves across 20 Hz – 20 kHz with draggable frequency node markers.
@@ -27,7 +27,7 @@ Third Bass features a custom, high-definition double-buffered hardware rack inte
 
 ## Features & Signal Chain
 
-Third Bass is tailored specifically to make electric bass guitars, synth basses, and low-end tracks punch through a mix with weight, grit, and clarity:
+Third Ass is tailored specifically to make electric bass guitars, synth basses, and low-end tracks punch through a mix with weight, grit, and clarity:
 
 1. **Input Stage & Noise Gate**
    - Clean adjustable threshold (`-90 dB` to `0 dB`) and exponential release (`10 ms` to `500 ms`) to silence high-gain amplifier buzz, single-coil hum, and idle line noise.
@@ -45,7 +45,7 @@ Third Bass is tailored specifically to make electric bass guitars, synth basses,
 4. **Resurrection Psychoacoustic Sub-Harmonic Enhancer**
    - Signature sub-bass generator inspired by Christian Budde's Resurrection DSP.
    - Tunable fundamental tracking frequency (`40 Hz` to `120 Hz`).
-   - Generates non-linear 2nd & 3rd virtual pitch harmonics ($2x^2-1$ and $4x^3-3x$) that fool the human ear into hearing deep sub-bass on small monitors, laptops, and headphones.
+   - Generates non-linear 2nd & 3rd virtual pitch harmonics that fool the human ear into hearing deep sub-bass on small monitors, laptops, and headphones.
    - Sub Boost control adds pure sub-octave rumble.
 5. **Bass Dynamics (Opto / Soft-Knee Compressor)**
    - Threshold (`-40 dB` to `0 dB`), Ratio (`1:1` to `12:1`), Attack (`1 ms` to `100 ms`), Release (`20 ms` to `1000 ms`), and Makeup Gain (`0 dB` to `24 dB`).
@@ -86,55 +86,50 @@ Third Bass is tailored specifically to make electric bass guitars, synth basses,
 
 ---
 
-## Installation & Formats
+## Windows Installation & Usage
 
-This project builds 3 native Linux formats:
-* **VST2 (`ThirdBass.so`)**: Installed to `~/.vst/` and `/home/yavuz/Documents/lmms/plugins/vst/` (compatible with LMMS VeSTige & Carla and REAPER).
-* **LV2 (`ThirdBass.lv2`)**: Installed to `~/.lv2/` (recognized by REAPER and LMMS).
-* **CLAP (`ThirdBass.clap`)**: Installed to `~/.clap/` (recognized by modern REAPER).
-
-### Building and Installing
-
-To compile and install:
+### 1. Building on Windows
+Run the automated build script in PowerShell:
+```powershell
+.\build.ps1 -Install
+```
+Or via make:
 ```bash
+make
 make install
 ```
 
-To run the verification test suite:
-```bash
-make test
-```
+### 2. Formats & Paths
+* **Windows VST2 Plugin**: `dist\ThirdAss.dll`
+* **LMMS VeSTige Path**: `%USERPROFILE%\Documents\lmms\plugins\vst\ThirdAss.dll`
+* **Common VST2 Path**: `C:\Program Files\Common Files\VST2\ThirdAss.dll`
+* **Standalone GUI Preview**: `bin\thirdbass_gui.exe`
 
----
+### 3. Using in LMMS (VeSTige)
+1. In LMMS, open the **Song-Editor**.
+2. Add or select **VeSTige** from the Instrument Plugins browser.
+3. In the VeSTige instrument window, click the green folder icon.
+4. Select `ThirdAss.dll` from `Documents\lmms\plugins\vst\ThirdAss.dll` (or `dist\ThirdAss.dll`).
+5. The hardware-accelerated Direct2D GUI window will open seamlessly.
 
-## Using in REAPER
-
+### 4. Using in REAPER (Windows)
 1. Open REAPER.
-2. Open the FX window on any bass audio or virtual instrument track (click `FX`).
-3. If REAPER hasn't scanned yet, press `F5` in the FX browser or go to `Options -> Preferences -> Plug-ins -> VST` and click `Re-scan`.
-4. Type `Third Bass` in the search box.
-5. Add `VST: Third Bass (Antigravity Audio)`, `LV2: Third Bass`, or `CLAP: Third Bass`.
-6. Select any of the 12 factory presets from the preset dropdown, or tweak any of the 37 parameters!
+2. Open the FX window on your bass track.
+3. Scan for new plugins (`Options -> Preferences -> Plug-ins -> VST -> Re-scan`).
+4. Add `VST: Third Ass (myavuzuzun)`.
 
 ---
 
-## Using in LMMS
+## Running Verification Tests
 
-### Method 1: In the FX Mixer (Effect Processor)
-1. Open the **FX Mixer** (`F8`).
-2. Select your Bass channel.
-3. Click **Add effect**.
-4. In the effect search dialog, locate **Third Bass** (either via native VST or LV2 / Carla).
-5. Load the plugin and dial in your tone.
-
-### Method 2: As an Instrument / Audio Processor (VeSTige)
-1. Drag **VeSTige** from the Instrument Plugins panel into the Song-Editor.
-2. In the VeSTige instrument window, click the green folder icon.
-3. Open `ThirdBass.so` from your VST folder: `/home/yavuz/Documents/lmms/plugins/vst/ThirdBass.so`.
+To run the automated VST2 verification suite:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\test_vst.ps1
+```
 
 ---
 
 ## License
 
 ISC License (Open-source, permissive).
-Designed & built by Antigravity.
+Designed & built by myavuzuzun.

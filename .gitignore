@@ -1,7 +1,30 @@
+# Build artifacts & executables
 dist/
 bin/
 build/
 *.o
+*.obj
 *.so
+*.dll
+*.dylib
+*.exe
 *.clap
+*.a
+*.lib
+*.exp
+*.ilk
+*.pdb
+*.old
+
+# Windows & OS metadata
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 .DS_Store
+
+# Editor & IDE settings
+.vscode/
+.vs/
+.idea/
+*.swp
+*~

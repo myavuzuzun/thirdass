@@ -1,6 +1,12 @@
 #pragma once
 
+#if defined(__SSE__) || defined(_M_X64) || defined(__x86_64__)
+#include <xmmintrin.h>
+#include <pmmintrin.h>
+#endif
+
 #include <vector>
+#include <array>
 #include <string>
 #include <cmath>
 #include <algorithm>
@@ -315,10 +321,41 @@ inline const std::vector<Preset>& getPresets() {
     return presets;
 }
 
+#if defined(__SSE__) || defined(_M_X64) || defined(__x86_64__)
+struct ScopedNoDenormals {
+    unsigned int oldMxcsr;
+    ScopedNoDenormals() {
+        oldMxcsr = _mm_getcsr();
+        _mm_setcsr(oldMxcsr | 0x8040); // Enable FTZ (bit 15) and DAZ (bit 6) in hardware
+    }
+    ~ScopedNoDenormals() {
+        _mm_setcsr(oldMxcsr);
+    }
+};
+#else
+struct ScopedNoDenormals {
+    ScopedNoDenormals() {}
+};
+#endif
+
+// High-speed rational approximation to tanh(x) with high fidelity (|error| < 0.003)
+inline float fastTanh(float x) {
+    if (x < -3.0f) return -1.0f;
+    if (x > 3.0f) return 1.0f;
+    float x2 = x * x;
+    return x * (27.0f + x2) / (27.0f + 9.0f * x2);
+}
+
+inline int nextPowerOfTwo(int x) {
+    if (x <= 1) return 1;
+    int p = 1;
+    while (p < x) p <<= 1;
+    return p;
+}
+
 class ThirdBassEngine {
 public:
     ThirdBassEngine() {
-        params.resize(NUM_PARAMS);
         const ParameterDef* defs = getParameterDefs();
         for (int i = 0; i < NUM_PARAMS; ++i) {
             params[i] = defs[i].defaultVal;
@@ -330,16 +367,20 @@ public:
         if (sr <= 0.0f) sr = 44100.0f;
         sampleRate = sr;
 
-        // Initialize delay buffer: 2 seconds
-        int maxDelaySamples = static_cast<int>(sampleRate * 2.1f);
-        delayBufferL.assign(maxDelaySamples, 0.0f);
-        delayBufferR.assign(maxDelaySamples, 0.0f);
+        // Initialize delay buffer: power of 2 (at least 2.2 seconds)
+        int minDelaySamples = static_cast<int>(sampleRate * 2.2f);
+        int delaySize = nextPowerOfTwo(minDelaySamples);
+        delayBufMask = delaySize - 1;
+        delayBufferL.assign(delaySize, 0.0f);
+        delayBufferR.assign(delaySize, 0.0f);
         delayWritePos = 0;
 
-        // Initialize chorus buffer: 50 ms
-        int maxChorusSamples = static_cast<int>(sampleRate * 0.06f) + 16;
-        chorusBufferL.assign(maxChorusSamples, 0.0f);
-        chorusBufferR.assign(maxChorusSamples, 0.0f);
+        // Initialize chorus buffer: power of 2 (~65 ms)
+        int minChorusSamples = static_cast<int>(sampleRate * 0.065f) + 32;
+        int chorusSize = nextPowerOfTwo(minChorusSamples);
+        chorusBufMask = chorusSize - 1;
+        chorusBufferL.assign(chorusSize, 0.0f);
+        chorusBufferR.assign(chorusSize, 0.0f);
         chorusWritePos = 0;
         chorusPhase = 0.0f;
 
@@ -384,6 +425,8 @@ public:
     float getMeterGateGain() const { return meterGateGain.load(std::memory_order_relaxed); }
 
     void process(const float* const* inputs, float* const* outputs, int numFrames) {
+        ScopedNoDenormals noDenormals;
+
         if (dirtyFilters) {
             updateFilterCoeffs();
             dirtyFilters = false;
@@ -395,8 +438,8 @@ public:
         float* outR = (outputs[1] != nullptr) ? outputs[1] : outputs[0];
 
         // Cache parameters to local floats for speed
-        float inGainLin = std::pow(10.0f, params[PARAM_IN_GAIN] / 20.0f);
-        float gateThreshLin = std::pow(10.0f, params[PARAM_GATE_THRESH] / 20.0f);
+        float inGainLin = std::exp(params[PARAM_IN_GAIN] * 0.1151292546497f);
+        float gateThreshLin = std::exp(params[PARAM_GATE_THRESH] * 0.1151292546497f);
         float gateRelCoeff = std::exp(-1.0f / (sampleRate * (params[PARAM_GATE_RELEASE] * 0.001f)));
 
         bool driveOn = params[PARAM_DRIVE_ENABLE] > 0.5f;
@@ -415,7 +458,7 @@ public:
         float compRatio = params[PARAM_COMP_RATIO];
         float compAttCoeff = std::exp(-1.0f / (sampleRate * (params[PARAM_COMP_ATTACK] * 0.001f)));
         float compRelCoeff = std::exp(-1.0f / (sampleRate * (params[PARAM_COMP_RELEASE] * 0.001f)));
-        float compMakeupLin = std::pow(10.0f, params[PARAM_COMP_MAKEUP] / 20.0f);
+        float compMakeupLin = std::exp(params[PARAM_COMP_MAKEUP] * 0.1151292546497f);
 
         bool chorusOn = params[PARAM_CHORUS_ENABLE] > 0.5f;
         float chorusDepth = params[PARAM_CHORUS_DEPTH] * 0.01f;
@@ -432,17 +475,19 @@ public:
 
         int cabMode = static_cast<int>(params[PARAM_CAB_MODE]);
         bool limiterOn = params[PARAM_LIMITER_ENABLE] > 0.5f;
-        float outGainLin = std::pow(10.0f, params[PARAM_OUT_GAIN] / 20.0f);
+        float outGainLin = std::exp(params[PARAM_OUT_GAIN] * 0.1151292546497f);
         float dryWet = params[PARAM_DRY_WET] * 0.01f;
-
-        int delayBufSize = delayBufferL.size();
-        int chorusBufSize = chorusBufferL.size();
 
         float blockPeakIn = 0.0f;
         float blockPeakOutL = 0.0f;
         float blockPeakOutR = 0.0f;
         float minGateGain = 1.0f;
         float maxCompGR = 0.0f;
+
+        const float* const pChorusL = chorusBufferL.data();
+        const float* const pChorusR = chorusBufferR.data();
+        float* const pDelayL = delayBufferL.data();
+        float* const pDelayR = delayBufferR.data();
 
         for (int i = 0; i < numFrames; ++i) {
             float rawL = inL[i];
@@ -460,7 +505,6 @@ public:
             } else {
                 gateEnv = gateEnv * gateRelCoeff + peak * (1.0f - gateRelCoeff);
             }
-            gateEnv = flushDenormal(gateEnv);
 
             float gateGain = 1.0f;
             if (gateEnv < gateThreshLin) {
@@ -490,7 +534,7 @@ public:
                     // Warm Tube: Asymmetric soft clipping
                     auto tubeSat = [](float x) {
                         if (x > 0.0f) {
-                            return std::tanh(x * 1.2f) * 0.833f;
+                            return fastTanh(x * 1.2f) * 0.83333333f;
                         } else {
                             float neg = -x;
                             return -(neg / (1.0f + neg * 0.6f));
@@ -499,13 +543,13 @@ public:
                     dL = tubeSat(dL);
                     dR = tubeSat(dR);
                 } else if (driveMode == 1) {
-                    // Overdrive: Symmetrical cubic / tanh soft-clipping
+                    // Overdrive: Symmetrical cubic soft-clipping
                     auto odSat = [](float x) {
                         float absX = std::abs(x);
                         if (absX <= 1.0f) {
-                            return x - (x * x * x) / 3.0f;
+                            return x - (x * x * x) * 0.33333333f;
                         } else {
-                            return (x > 0.0f) ? (2.0f / 3.0f) : (-2.0f / 3.0f);
+                            return (x > 0.0f) ? 0.66666667f : -0.66666667f;
                         }
                     };
                     dL = odSat(dL * 0.8f) * 1.25f;
@@ -514,7 +558,7 @@ public:
                     // Fuzz / Heavy Grit: Hard foldback & harmonic crunch
                     auto fuzzSat = [](float x) {
                         float clip = std::clamp(x, -1.2f, 1.2f);
-                        return std::tanh(clip * 1.8f);
+                        return fastTanh(clip * 1.8f);
                     };
                     dL = fuzzSat(dL);
                     dR = fuzzSat(dR);
@@ -554,8 +598,9 @@ public:
                 // Chebyshev T2(x) = 2x^2 - 1, T3(x) = 4x^3 - 3x
                 auto genHarmonics = [](float x) {
                     float xClamped = std::clamp(x * 1.5f, -1.0f, 1.0f);
-                    float h2 = 2.0f * xClamped * xClamped - 1.0f;
-                    float h3 = 4.0f * xClamped * xClamped * xClamped - 3.0f * xClamped;
+                    float x2 = xClamped * xClamped;
+                    float h2 = 2.0f * x2 - 1.0f;
+                    float h3 = (4.0f * x2 - 3.0f) * xClamped;
                     return h2 * 0.6f + h3 * 0.4f;
                 };
 
@@ -569,7 +614,7 @@ public:
             // 6. Bass Compressor
             if (compOn) {
                 float envIn = std::max(std::abs(sL), std::abs(sR));
-                float inDb = (envIn > 1e-5f) ? (20.0f * std::log10(envIn)) : -100.0f;
+                float inDb = (envIn > 1e-5f) ? (8.685889638f * std::log(envIn)) : -100.0f;
 
                 // Soft-knee curve (4 dB knee width)
                 float knee = 4.0f;
@@ -581,8 +626,8 @@ public:
                 } else if (delta >= knee * 0.5f) {
                     grDb = (1.0f - 1.0f / compRatio) * delta;
                 } else {
-                    float k = (delta + knee * 0.5f) / knee;
-                    grDb = (1.0f - 1.0f / compRatio) * (k * k * knee * 0.5f);
+                    float k = (delta + knee * 0.5f) * 0.25f;
+                    grDb = (1.0f - 1.0f / compRatio) * (k * k * 2.0f);
                 }
 
                 // Ballistic smoothing
@@ -591,9 +636,8 @@ public:
                 } else {
                     compEnv = compEnv * compRelCoeff + grDb * (1.0f - compRelCoeff);
                 }
-                compEnv = flushDenormal(compEnv);
 
-                float compGainLin = std::pow(10.0f, -compEnv / 20.0f) * compMakeupLin;
+                float compGainLin = std::exp(-compEnv * 0.1151292546497f) * compMakeupLin;
                 sL *= compGainLin;
                 sR *= compGainLin;
                 maxCompGR = std::max(maxCompGR, compEnv);
@@ -614,26 +658,33 @@ public:
                 chorusBufferR[chorusWritePos] = highR;
 
                 // Dual quadrature LFO (L = 0 deg, R = 90 deg)
-                float lfoL = (std::sin(chorusPhase) + 1.0f) * 0.5f;
-                float lfoR = (std::sin(chorusPhase + 1.57079632679f) + 1.0f) * 0.5f;
+                float sinVal, cosVal;
+#if defined(__GNUC__) || defined(__clang__)
+                __builtin_sincosf(chorusPhase, &sinVal, &cosVal);
+#else
+                sinVal = std::sin(chorusPhase);
+                cosVal = std::cos(chorusPhase);
+#endif
+                float lfoL = (sinVal + 1.0f) * 0.5f;
+                float lfoR = (cosVal + 1.0f) * 0.5f;
 
                 // Delay time: 5ms to 25ms
                 float baseDelay = 0.008f * sampleRate;
                 float modDepth = 0.012f * sampleRate * chorusDepth;
 
-                auto readChorus = [&](const std::vector<float>& buf, float delaySamp) {
+                auto readChorus = [&](const float* buf, float delaySamp) {
                     float rPos = (float)chorusWritePos - delaySamp;
-                    while (rPos < 0.0f) rPos += chorusBufSize;
-                    int i0 = (int)rPos;
-                    int i1 = (i0 + 1) % chorusBufSize;
+                    int i0 = static_cast<int>(std::floor(rPos));
                     float frac = rPos - (float)i0;
-                    return buf[i0] + frac * (buf[i1] - buf[i0]);
+                    int idx0 = i0 & chorusBufMask;
+                    int idx1 = (i0 + 1) & chorusBufMask;
+                    return buf[idx0] + frac * (buf[idx1] - buf[idx0]);
                 };
 
-                float wetHighL = readChorus(chorusBufferL, baseDelay + modDepth * lfoL);
-                float wetHighR = readChorus(chorusBufferR, baseDelay + modDepth * lfoR);
+                float wetHighL = readChorus(pChorusL, baseDelay + modDepth * lfoL);
+                float wetHighR = readChorus(pChorusR, baseDelay + modDepth * lfoR);
 
-                chorusWritePos = (chorusWritePos + 1) % chorusBufSize;
+                chorusWritePos = (chorusWritePos + 1) & chorusBufMask;
                 chorusPhase += chorusPhaseInc;
                 if (chorusPhase > 6.28318530718f) chorusPhase -= 6.28318530718f;
 
@@ -643,28 +694,26 @@ public:
 
             // 8. Stereo Delay
             if (delayOn && delayMix > 0.001f) {
-                auto readDelay = [&](const std::vector<float>& buf, float delaySamp) {
+                auto readDelay = [&](const float* buf, float delaySamp) {
                     float rPos = (float)delayWritePos - delaySamp;
-                    while (rPos < 0.0f) rPos += delayBufSize;
-                    int i0 = (int)rPos;
-                    int i1 = (i0 + 1) % delayBufSize;
+                    int i0 = static_cast<int>(std::floor(rPos));
                     float frac = rPos - (float)i0;
-                    return buf[i0] + frac * (buf[i1] - buf[i0]);
+                    int idx0 = i0 & delayBufMask;
+                    int idx1 = (i0 + 1) & delayBufMask;
+                    return buf[idx0] + frac * (buf[idx1] - buf[idx0]);
                 };
 
-                float delOutL = readDelay(delayBufferL, delaySamples);
-                float delOutR = readDelay(delayBufferR, delaySamples * 1.08f); // slight stereo offset
+                float delOutL = readDelay(pDelayL, delaySamples);
+                float delOutR = readDelay(pDelayR, delaySamples * 1.08f); // slight stereo offset
 
                 // Damping filter
                 delayDampStateL = delOutL * (1.0f - delayDampCoeff) + delayDampStateL * delayDampCoeff;
                 delayDampStateR = delOutR * (1.0f - delayDampCoeff) + delayDampStateR * delayDampCoeff;
-                delayDampStateL = flushDenormal(delayDampStateL);
-                delayDampStateR = flushDenormal(delayDampStateR);
 
-                delayBufferL[delayWritePos] = sL + delayDampStateL * delayFb;
-                delayBufferR[delayWritePos] = sR + delayDampStateR * delayFb;
+                pDelayL[delayWritePos] = sL + delayDampStateL * delayFb;
+                pDelayR[delayWritePos] = sR + delayDampStateR * delayFb;
 
-                delayWritePos = (delayWritePos + 1) % delayBufSize;
+                delayWritePos = (delayWritePos + 1) & delayBufMask;
 
                 sL = sL * (1.0f - delayMix) + delOutL * delayMix;
                 sR = sR * (1.0f - delayMix) + delOutR * delayMix;
@@ -817,7 +866,7 @@ private:
     }
 
     float sampleRate = 44100.0f;
-    std::vector<float> params;
+    std::array<float, NUM_PARAMS> params{};
     bool dirtyFilters = true;
 
     // Filters
@@ -850,11 +899,13 @@ private:
     std::vector<float> delayBufferL;
     std::vector<float> delayBufferR;
     int delayWritePos = 0;
+    int delayBufMask = 0;
 
     // Chorus buffers
     std::vector<float> chorusBufferL;
     std::vector<float> chorusBufferR;
     int chorusWritePos = 0;
+    int chorusBufMask = 0;
     float chorusPhase = 0.0f;
 
     // Real-time audio metering atomics

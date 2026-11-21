@@ -7,7 +7,7 @@
 
 int main(int argc, char** argv) {
     std::cout << "===================================================\n";
-    std::cout << " Third Bass (Linux Native VST / LV2 / CLAP Engine) \n";
+    std::cout << " Third Ass (Linux Native VST) \n";
     std::cout << " DSP Verification & Benchmarking Test Suite         \n";
     std::cout << "===================================================\n\n";
 

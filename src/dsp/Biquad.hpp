@@ -5,7 +5,11 @@
 namespace ThirdBass {
 
 inline float flushDenormal(float val) {
+#if defined(__SSE__) || defined(_M_X64) || defined(__x86_64__)
+    return val; // Handled directly in hardware via FTZ/DAZ control flags
+#else
     return (std::abs(val) < 1e-15f) ? 0.0f : val;
+#endif
 }
 
 enum class FilterType {
@@ -31,16 +35,21 @@ public:
 
     void setParams(FilterType type, float sampleRate, float frequency, float q, float gainDb = 0.0f) {
         if (sampleRate <= 0.0f) sampleRate = 44100.0f;
-        // Clamp frequency between 10 Hz and Nyquist * 0.95
+        // Clamp frequency between 10 Hz and Nyquist * 0.495
         float nyquist = sampleRate * 0.495f;
         frequency = std::clamp(frequency, 10.0f, nyquist);
         q = std::max(0.01f, q);
 
         float w0 = 2.0f * 3.14159265358979323846f * frequency / sampleRate;
-        float cosW = std::cos(w0);
-        float sinW = std::sin(w0);
+        float sinW, cosW;
+#if defined(__GNUC__) || defined(__clang__)
+        __builtin_sincosf(w0, &sinW, &cosW);
+#else
+        sinW = std::sin(w0);
+        cosW = std::cos(w0);
+#endif
         float alpha = sinW / (2.0f * q);
-        float A = std::pow(10.0f, gainDb / 40.0f); // sqrt(10^(gainDb/20))
+        float A = std::exp(gainDb * 0.05756462732485f); // 10^(gainDb/40) = exp(gainDb * ln(10)/40)
 
         float b0_t = 0.0f, b1_t = 0.0f, b2_t = 0.0f, a0_t = 1.0f, a1_t = 0.0f, a2_t = 0.0f;
 
@@ -107,7 +116,7 @@ public:
                 float aAlpha = 2.0f * sqrtA * alpha;
                 b0_t = A * ((A + 1.0f) + (A - 1.0f) * cosW + aAlpha);
                 b1_t = -2.0f * A * ((A - 1.0f) + (A + 1.0f) * cosW);
-                b2_t = A * ((A + 1.0f) + (A - 1.0f) * cosW - aAlpha);
+                b2_t = A * ((A + 1.0f) - (A - 1.0f) * cosW - aAlpha);
                 a0_t = (A + 1.0f) - (A - 1.0f) * cosW + aAlpha;
                 a1_t = 2.0f * ((A - 1.0f) - (A + 1.0f) * cosW);
                 a2_t = (A + 1.0f) - (A - 1.0f) * cosW - aAlpha;
@@ -126,13 +135,10 @@ public:
     }
 
     inline float process(float in) {
-        // Direct Form II Transposed
+        // Direct Form II Transposed: pure arithmetic, 0 branches
         float out = b0 * in + z1;
         z1 = b1 * in - a1 * out + z2;
         z2 = b2 * in - a2 * out;
-
-        z1 = flushDenormal(z1);
-        z2 = flushDenormal(z2);
         return out;
     }
 
@@ -141,5 +147,6 @@ private:
     float a1 = 0.0f, a2 = 0.0f;
     float z1 = 0.0f, z2 = 0.0f;
 };
+
 
 } // namespace ThirdBass
