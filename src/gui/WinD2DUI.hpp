@@ -493,12 +493,9 @@ private:
         setBrushColor(D2DColor(0.16f, 0.17f, 0.19f));
         pRenderTarget->DrawLine(D2D1::Point2F(0, 48), D2D1::Point2F(UI_WIDTH, 48), pSolidBrush, 1.0f);
 
-        // Branding Title
-        setBrushColor(D2DColor(0.96f, 0.97f, 0.98f)); // Crisp Off-White
-        drawDWriteText(L"THIRD ASS", 22, 10, 140, 36, pFormatTitle);
-
-        setBrushColor(D2DColor(0.50f, 0.53f, 0.58f));
-        drawDWriteText(L"BASS MULTI-PROCESSOR", 172, 13, 230, 36, pFormatSubtitle);
+        // Author Tag (Minimalist & Unbranded)
+        setBrushColor(D2DColor(0.88f, 0.90f, 0.94f));
+        drawDWriteText(L"myavuzuzun", 22, 10, 220, 36, pFormatTitle);
 
         // Preset Selector Bar
         drawPresetBar();
@@ -553,7 +550,7 @@ private:
         float outL = engine ? engine->getMeterOutPeakL() : 0.0f;
         float outR = engine ? engine->getMeterOutPeakR() : 0.0f;
 
-        float bx = 760, by = 15, bw = 100, bh = 18;
+        float bx = 830, by = 15, bw = 130, bh = 18;
         setBrushColor(D2DColor(0.08f, 0.085f, 0.095f));
         pRenderTarget->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(bx, by, bx + bw, by + bh), 2, 2), pSolidBrush);
 
@@ -568,17 +565,6 @@ private:
         setBrushColor(D2DColor(0.50f, 0.54f, 0.60f));
         drawDWriteText(L"L", bx + 4, by + 2, 10, 8, pFormatSmall);
         drawDWriteText(L"R", bx + 4, by + 9, 10, 8, pFormatSmall);
-
-        // VeSTige x64 Badge (Monochrome Minimalist)
-        float tagX = 878, tagY = 15, tagW = 82, tagH = 18;
-        setBrushColor(D2DColor(0.10f, 0.105f, 0.12f));
-        pRenderTarget->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(tagX, tagY, tagX + tagW, tagY + tagH), 2, 2), pSolidBrush);
-
-        setBrushColor(D2DColor(0.20f, 0.21f, 0.24f));
-        pRenderTarget->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(tagX, tagY, tagX + tagW, tagY + tagH), 2, 2), pSolidBrush, 1.0f);
-
-        setBrushColor(D2DColor(0.70f, 0.74f, 0.80f));
-        drawDWriteText(L"VeSTige x64", tagX, tagY + 1, tagW, tagH - 2, pFormatSmall, DWRITE_TEXT_ALIGNMENT_CENTER);
     }
 
     void drawMeterSegmentBar(float x, float y, float w, float h, float peakLin) {

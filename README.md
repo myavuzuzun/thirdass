@@ -2,7 +2,9 @@
 
 A high-performance, native 64-bit bass amplifier simulator and multi-effects processor for electric bass guitars, synth basses, and low-end sound design.
 
-Built on the open-source **VeSTige** clean-room architecture specifically for **LMMS (VeSTige)**, **REAPER**, and modern 64-bit Windows host DAWs without requiring bridges, wrappers, or proprietary SDK dependencies.
+Built on open-source clean-room architectures providing dual output formats:
+- **VeSTige**: Native 64-bit DLL for LMMS (VeSTige) and Windows DAWs.
+- **VST3**: Modern VST3 format (`.vst3` bundle) for modern DAWs (Cubase, REAPER, Ableton Live, Studio One, FL Studio, Bitwig) without requiring bridges, wrappers, or proprietary SDK dependencies.
 
 ## Graphical User Interface (GUI)
 
@@ -100,9 +102,11 @@ make install
 ```
 
 ### 2. Formats & Paths
-* **Windows 64-bit Audio Plugin**: `dist\ThirdAss.dll`
+* **VeSTige 64-bit Audio Plugin**: `dist\ThirdAss.dll` (optimized for LMMS VeSTige)
+* **Modern VST3 Plugin**: `dist\ThirdAss.vst3` (for modern DAWs: Cubase, REAPER, FL Studio, Ableton, Studio One)
 * **LMMS VeSTige Path**: `%USERPROFILE%\Documents\lmms\plugins\vst\ThirdAss.dll`
-* **Common VST Path**: `C:\Users\%USERNAME%\Documents\VstPlugins\ThirdAss.dll`
+* **Common VST3 Path**: `%LOCALAPPDATA%\Programs\Common\VST3\ThirdAss.vst3`
+* **Common VST Path**: `C:\Users\%USERNAME%\Documents\VstPlugins\ThirdAss.dll` & `ThirdAss.vst3`
 * **Standalone GUI Preview**: `bin\thirdass_gui.exe`
 
 ### 3. Using in LMMS (VeSTige)
