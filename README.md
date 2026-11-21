@@ -1,12 +1,12 @@
-# Third Ass (Windows & Linux Native VST2)
+# Third Ass (Windows x64 Native Audio Plugin)
 
 A high-performance, native 64-bit bass amplifier simulator and multi-effects processor designed as a modern replacement for the legacy Windows freeware plugin **3rd Bass** (by Fretted Synth Audio / Joseph DeHelian).
 
-Built specifically for **LMMS (VeSTige)**, **REAPER**, and all modern VST2 host DAWs on Windows and Linux without requiring bridges or external runtime dependencies.
+Built on the open-source **VeSTige** clean-room architecture specifically for **LMMS (VeSTige)**, **REAPER**, and modern 64-bit Windows host DAWs without requiring bridges, wrappers, or proprietary SDK dependencies.
 
 ## Graphical User Interface (GUI)
 
-Third Ass features a custom, high-definition double-buffered hardware rack interface rendered on Windows via hardware-accelerated **Direct2D & DirectWrite** (and native Cairo / X11 on Linux):
+Third Ass features a custom, high-definition double-buffered hardware rack interface rendered on Windows via hardware-accelerated **Direct2D & DirectWrite**:
 
 - **Contextual Signal-Flow Grouping**: Modules are grouped strictly by studio audio signal chain (Input/Gate -> Preamp & Drive -> 4-Band EQ on top row; Sub Resurrection -> Opto Compressor -> Crossover Chorus -> Stereo Delay -> Cabinet & Master on bottom row).
 - **Dynamic 4-Band EQ Visualizer**: Recessed graphical spectrum analyzer showing real-time composite frequency curves across 20 Hz – 20 kHz with draggable frequency node markers.
@@ -100,14 +100,14 @@ make install
 ```
 
 ### 2. Formats & Paths
-* **Windows VST2 Plugin**: `dist\ThirdAss.dll`
+* **Windows 64-bit Audio Plugin**: `dist\ThirdAss.dll`
 * **LMMS VeSTige Path**: `%USERPROFILE%\Documents\lmms\plugins\vst\ThirdAss.dll`
-* **Common VST2 Path**: `C:\Program Files\Common Files\VST2\ThirdAss.dll`
+* **Common VST Path**: `C:\Users\%USERNAME%\Documents\VstPlugins\ThirdAss.dll`
 * **Standalone GUI Preview**: `bin\thirdbass_gui.exe`
 
 ### 3. Using in LMMS (VeSTige)
 1. In LMMS, open the **Song-Editor**.
-2. Add or select **VeSTige** from the Instrument Plugins browser.
+2. Add or select **VeSTige** from the Instrument Plugins browser (or double-click the included `ThirdAss.xpf` preset).
 3. In the VeSTige instrument window, click the green folder icon.
 4. Select `ThirdAss.dll` from `Documents\lmms\plugins\vst\ThirdAss.dll` (or `dist\ThirdAss.dll`).
 5. The hardware-accelerated Direct2D GUI window will open seamlessly.
@@ -116,13 +116,13 @@ make install
 1. Open REAPER.
 2. Open the FX window on your bass track.
 3. Scan for new plugins (`Options -> Preferences -> Plug-ins -> VST -> Re-scan`).
-4. Add `VST: Third Ass (myavuzuzun)`.
+4. Add `Third Ass (myavuzuzun)`.
 
 ---
 
 ## Running Verification Tests
 
-To run the automated VST2 verification suite:
+To run the automated verification suite:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\test_vst.ps1
 ```

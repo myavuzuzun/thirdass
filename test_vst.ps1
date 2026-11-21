@@ -60,6 +60,9 @@ public class VstRunner {
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void ProcessReplacingFunc(IntPtr effect, IntPtr[] inPtrs, IntPtr[] outPtrs, int sampleFrames);
 
+    [DllImport(@"dist\ThirdAss.dll", EntryPoint = "main", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr MainPlugin(AudioMasterCallback master);
+
     [DllImport(@"dist\ThirdAss.dll", EntryPoint = "VSTPluginMain", CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr VSTPluginMain(AudioMasterCallback master);
 
@@ -69,14 +72,17 @@ public class VstRunner {
 
     public static void RunAll() {
         Console.WriteLine("==================================================");
-        Console.WriteLine(" THIRD ASS VST2 (WINDOWS x64) VERIFICATION SUITE  ");
+        Console.WriteLine(" THIRD ASS (WINDOWS x64 VeSTige) VERIFICATION SUITE");
         Console.WriteLine("==================================================");
 
-        IntPtr pEffect = VSTPluginMain(HostCallback);
-        if (pEffect == IntPtr.Zero) throw new Exception("VSTPluginMain returned NULL!");
+        IntPtr pEffect = MainPlugin(HostCallback);
+        if (pEffect == IntPtr.Zero) {
+            pEffect = VSTPluginMain(HostCallback);
+        }
+        if (pEffect == IntPtr.Zero) throw new Exception("Plugin entry point returned NULL!");
 
         AEffect fx = (AEffect)Marshal.PtrToStructure(pEffect, typeof(AEffect));
-        Console.WriteLine(string.Format("[PASS] VST Magic: 0x{0:X8} (Expected: 0x56737450)", fx.magic));
+        Console.WriteLine(string.Format("[PASS] VeSTige Magic: 0x{0:X8} (Expected: 0x56737450)", fx.magic));
         Console.WriteLine(string.Format("[PASS] UniqueID: 0x{0:X8} ('3ASS')", fx.uniqueID));
         Console.WriteLine(string.Format("[PASS] Number of Programs: {0}", fx.numPrograms));
         Console.WriteLine(string.Format("[PASS] Number of Parameters: {0}", fx.numParams));

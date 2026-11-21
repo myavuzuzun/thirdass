@@ -1,4 +1,4 @@
-# Build and Test Script for Third Ass VST2 on Windows x64
+# Build and Test Script for Third Ass (Windows x64 VeSTige Architecture)
 param(
     [switch]$Install = $false
 )
@@ -6,16 +6,16 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host " Building Third Ass VST2 (Windows x64 Native)    " -ForegroundColor Cyan
+Write-Host " Building Third Ass (Windows x64 VeSTige)         " -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 
 # Ensure output directories exist
 if (-not (Test-Path "dist")) { New-Item -ItemType Directory -Path "dist" | Out-Null }
 if (-not (Test-Path "bin")) { New-Item -ItemType Directory -Path "bin" | Out-Null }
 
-# 1. Compile VST2 64-bit Dynamic Link Library (Ultra-Lightweight & Optimized)
+# 1. Compile 64-bit Dynamic Link Library via Open-Source VeSTige Architecture
 Write-Host "[1/3] Compiling dist/ThirdAss.dll (Direct2D GPU GUI + 64-bit Audio DSP)..." -ForegroundColor Yellow
-g++ -O3 -std=c++17 -Wall -Wextra -Iinclude -fno-math-errno -fno-trapping-math -static -shared -fno-rtti -fno-exceptions -ffunction-sections -fdata-sections -flto "-Wl,--gc-sections" -s src/vst2/ThirdBassVST2.cpp src/vst2/ThirdAss.def -ld2d1 -ldwrite -lole32 -lgdi32 -luser32 -o dist/ThirdAss.dll
+g++ -O3 -std=c++17 -Wall -Wextra -Iinclude -fno-math-errno -fno-trapping-math -static -shared -fno-rtti -fno-exceptions -ffunction-sections -fdata-sections -flto "-Wl,--gc-sections" -s src/vestige/ThirdAssPlugin.cpp src/vestige/ThirdAss.def -ld2d1 -ldwrite -lole32 -lgdi32 -luser32 -o dist/ThirdAss.dll
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to compile dist/ThirdAss.dll"
@@ -36,7 +36,7 @@ $exeSize = (Get-Item "bin\thirdbass_gui.exe").Length
 Write-Host "      -> bin/thirdbass_gui.exe built successfully! ($([math]::Round($exeSize/1KB, 1)) KB)" -ForegroundColor Green
 
 # 3. Run Verification Test Suite
-Write-Host "[3/3] Running VST2 test suite..." -ForegroundColor Yellow
+Write-Host "[3/3] Running plugin verification test suite..." -ForegroundColor Yellow
 powershell -ExecutionPolicy Bypass -File .\test_vst.ps1
 
 if ($LASTEXITCODE -ne 0) {
@@ -47,7 +47,7 @@ if ($LASTEXITCODE -ne 0) {
 # Optional installation
 if ($Install -or $true) {
     Write-Host "==================================================" -ForegroundColor Cyan
-    Write-Host " Installing VST2 Plugin for LMMS, REAPER & Windows " -ForegroundColor Cyan
+    Write-Host " Installing Plugin for LMMS, REAPER & Windows     " -ForegroundColor Cyan
     Write-Host "==================================================" -ForegroundColor Cyan
 
     $lmmsVstDir = "$env:USERPROFILE\Documents\lmms\plugins\vst"

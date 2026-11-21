@@ -5,31 +5,19 @@
 #include <vector>
 #include <algorithm>
 
-#if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
-#include "../gui/WinD2DUI.hpp"
-#else
-#include <X11/Xlib.h>
-#include "../gui/CairoUI.hpp"
-#endif
 
-#include "../../include/vst2/aeffect.h"
+#include "vestige/vestige.h"
 #include "../dsp/ThirdBassDSP.hpp"
+#include "../gui/WinD2DUI.hpp"
 
-struct ERect {
-    int16_t top;
-    int16_t left;
-    int16_t bottom;
-    int16_t right;
-};
-
-class ThirdBassVST2Wrapper {
+class ThirdAssPluginWrapper {
 public:
-    ThirdBassVST2Wrapper(audioMasterCallback master) : audioMaster(master) {
+    ThirdAssPluginWrapper(audioMasterCallback master) : audioMaster(master) {
         memset(&cEffect, 0, sizeof(cEffect));
-        cEffect.magic = kEffectMagic;
+        cEffect.magic = VESTIGE_MAGIC;
         cEffect.dispatcher = dispatcherCallback;
         cEffect.process = nullptr;
         cEffect.processReplacing = processReplacingCallback;
@@ -54,7 +42,7 @@ public:
         engine.setSampleRate(44100.0f);
     }
 
-    ~ThirdBassVST2Wrapper() {
+    ~ThirdAssPluginWrapper() {
         closeEditor();
     }
 
@@ -62,19 +50,19 @@ public:
 
     static intptr_t dispatcherCallback(AEffect* effect, int32_t opcode, int32_t index, intptr_t value, void* ptr, float opt) {
         if (!effect || !effect->object) return 0;
-        auto* self = static_cast<ThirdBassVST2Wrapper*>(effect->object);
+        auto* self = static_cast<ThirdAssPluginWrapper*>(effect->object);
         return self->dispatcher(opcode, index, value, ptr, opt);
     }
 
     static void processReplacingCallback(AEffect* effect, float** inputs, float** outputs, int32_t sampleFrames) {
         if (!effect || !effect->object) return;
-        auto* self = static_cast<ThirdBassVST2Wrapper*>(effect->object);
+        auto* self = static_cast<ThirdAssPluginWrapper*>(effect->object);
         self->engine.process(inputs, outputs, sampleFrames);
     }
 
     static void processDoubleReplacingCallback(AEffect* effect, double** inputs, double** outputs, int32_t sampleFrames) {
         if (!effect || !effect->object) return;
-        auto* self = static_cast<ThirdBassVST2Wrapper*>(effect->object);
+        auto* self = static_cast<ThirdAssPluginWrapper*>(effect->object);
         
         thread_local std::vector<float> inBufL, inBufR, outBufL, outBufR;
         if ((int)inBufL.size() < sampleFrames) {
@@ -102,7 +90,7 @@ public:
 
     static void setParameterCallback(AEffect* effect, int32_t index, float parameter) {
         if (!effect || !effect->object) return;
-        auto* self = static_cast<ThirdBassVST2Wrapper*>(effect->object);
+        auto* self = static_cast<ThirdAssPluginWrapper*>(effect->object);
         if (index < 0 || index >= ThirdBass::NUM_PARAMS) return;
 
         const auto* defs = ThirdBass::getParameterDefs();
@@ -116,7 +104,7 @@ public:
 
     static float getParameterCallback(AEffect* effect, int32_t index) {
         if (!effect || !effect->object) return 0.0f;
-        auto* self = static_cast<ThirdBassVST2Wrapper*>(effect->object);
+        auto* self = static_cast<ThirdAssPluginWrapper*>(effect->object);
         if (index < 0 || index >= ThirdBass::NUM_PARAMS) return 0.0f;
 
         const auto* defs = ThirdBass::getParameterDefs();
@@ -146,12 +134,7 @@ public:
 
             case effEditOpen:
                 if (ptr) {
-#if defined(_WIN32)
                     openEditor(ptr);
-#else
-                    Window parentWin = (Window)(uintptr_t)ptr;
-                    openEditor(parentWin);
-#endif
                     return 1;
                 }
                 return 0;
@@ -160,7 +143,7 @@ public:
                 closeEditor();
                 return 1;
 
-            case 19: // effEditIdle
+            case effEditIdle:
                 if (ui) {
                     ui->idle();
                 }
@@ -265,7 +248,7 @@ public:
             case effGetVendorVersion:
                 return 1000;
 
-            case 25: // effProcessEvents
+            case effProcessEvents:
                 return 1;
 
             case effCanDo:
@@ -286,28 +269,17 @@ public:
         }
     }
 
-#if defined(_WIN32)
     void openEditor(void* parentWin) {
         closeEditor();
         ui = std::make_unique<ThirdBass::PluginUI>(&engine);
         ui->openWindow(parentWin);
     }
-#else
-    void openEditor(Window parentWin) {
-        closeEditor();
-        ui = std::make_unique<ThirdBass::PluginUI>(&engine);
-        ui->openWindow(nullptr, parentWin);
-    }
-#endif
 
     void closeEditor() {
         if (ui) {
             ui->closeWindow();
             ui.reset();
         }
-#if !defined(_WIN32)
-        xDisplay = nullptr;
-#endif
     }
 
 private:
@@ -316,34 +288,17 @@ private:
     ThirdBass::ThirdBassEngine engine;
     int32_t currentProgram;
     ERect editorRect;
-
-#if !defined(_WIN32)
-    Display* xDisplay = nullptr;
-#endif
     std::unique_ptr<ThirdBass::PluginUI> ui;
 };
 
 extern "C" {
 
-#if defined(_WIN32)
-#define VST_EXPORT __declspec(dllexport)
-#elif defined(__GNUC__)
-#define VST_EXPORT __attribute__((visibility("default")))
-#else
-#define VST_EXPORT
-#endif
+#define PLUGIN_EXPORT __declspec(dllexport)
 
-VST_EXPORT AEffect* VSTPluginMain(audioMasterCallback audioMaster) {
+PLUGIN_EXPORT AEffect* VSTPluginMain(audioMasterCallback audioMaster) {
     if (!audioMaster) return nullptr;
-    auto* wrapper = new ThirdBassVST2Wrapper(audioMaster);
+    auto* wrapper = new ThirdAssPluginWrapper(audioMaster);
     return wrapper->getAEffect();
 }
-
-#if !defined(_WIN32)
-VST_EXPORT AEffect* main_vst(audioMasterCallback audioMaster) asm("main");
-VST_EXPORT AEffect* main_vst(audioMasterCallback audioMaster) {
-    return VSTPluginMain(audioMaster);
-}
-#endif
 
 }

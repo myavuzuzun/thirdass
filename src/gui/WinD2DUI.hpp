@@ -569,7 +569,7 @@ private:
         drawDWriteText(L"L", bx + 4, by + 2, 10, 8, pFormatSmall);
         drawDWriteText(L"R", bx + 4, by + 9, 10, 8, pFormatSmall);
 
-        // Windows VST2 x64 Badge (Monochrome Minimalist)
+        // VeSTige x64 Badge (Monochrome Minimalist)
         float tagX = 878, tagY = 15, tagW = 82, tagH = 18;
         setBrushColor(D2DColor(0.10f, 0.105f, 0.12f));
         pRenderTarget->FillRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(tagX, tagY, tagX + tagW, tagY + tagH), 2, 2), pSolidBrush);
@@ -578,7 +578,7 @@ private:
         pRenderTarget->DrawRoundedRectangle(D2D1::RoundedRect(D2D1::RectF(tagX, tagY, tagX + tagW, tagY + tagH), 2, 2), pSolidBrush, 1.0f);
 
         setBrushColor(D2DColor(0.70f, 0.74f, 0.80f));
-        drawDWriteText(L"VST2 x64", tagX, tagY + 1, tagW, tagH - 2, pFormatSmall, DWRITE_TEXT_ALIGNMENT_CENTER);
+        drawDWriteText(L"VeSTige x64", tagX, tagY + 1, tagW, tagH - 2, pFormatSmall, DWRITE_TEXT_ALIGNMENT_CENTER);
     }
 
     void drawMeterSegmentBar(float x, float y, float w, float h, float peakLin) {
